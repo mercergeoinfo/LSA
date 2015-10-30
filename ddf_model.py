@@ -208,14 +208,15 @@ def pt2fmt(pt):
 		}
 	return fmttypes.get(pt, 'x')
 #
-def getSettings(DataLoc):
-	'''Set weather station elevation, julian day of last winter probing and list of julian days for which melt sum to be calculated and first day in shade model.
-	to use: refElev, jdayBw, jdayBs, startday = getSettings(DataLoc)
+def getSettings(DataLoc, lastDate):
+	'''Set weather station elevation, julian day of last winter probing and list of julian days for which melt sum to be exported and first day in shade model.
+	to use: refElev, jdayBw, jdatelist, startday = getSettings(DataLoc)
 	File (settings.txt) to be placed as so ../InData/yyyy/settings.txt, where yyyy is the relevant year.
 	Example:
 	Elevation=1150
 	jdayBw=115
-	jdayBs=236,256
+	ExportDate=236,256
+	ShadeStart=100
 	'''
 	# Called by:
 	#
@@ -231,28 +232,29 @@ def getSettings(DataLoc):
 	if 'Elevation' not in settings:
 		settings['Elevation'] = 1150
 		print "Elevation not found. Default value %s used" %(settings['Elevation'])
-	refElev = settings['Elevation']
+	refElev = int(settings['Elevation'])
 	# Set julian day for probing data
 	if 'jdayBw' not in settings:
 		settings['jdayBw'] = 115
 		print "jdayBw not found. Default value %s used" %(settings['jdayBw'])
-	jdayBw = settings['jdayBw']
-	# Set list of julian days for calculation of melt
-	jdayBs = []
-	if 'jdayBs' not in settings:
-		jdayBs.append(256)
-		print "jdayBs not found. Default, single value %s used" %(jdayBs[0])
+	jdayBw = int(settings['jdayBw'])
+	# Set julian days for which modelled values are to be exported
+	jdatelist = []
+	if 'ExportDates' not in settings:
+		dates = range(jdayBw+1, lastDate+1)
+		for date in dates:
+			jdatelist.append(date)
+		print "ExportDates not found.\nDefaults to exporting all dates between last probing %s and last temperature reading %s" %(jdayBw, lastDate)
 	else:
-		Bsdays = settings['jdayBs'].split(',')
-		for i in Bsdays:
-			jdayBs.append(int(i))
-	settings['jdayBs'] = jdayBs
+		expDays = settings['ExportDate'].spit(',')
+		for j in expDays:
+			jdatelist.append(int(j))
 	# Give the Julian day at which the shade raster starts. This should not vary from year to year.
 	if 'ShadeStart' not in settings:
 		startday = 100
 	else:
 		startday = int(settings['ShadeStart'])
-	return refElev, jdayBw, jdayBs, startday
+	return refElev, jdayBw, jdatelist, startday
 #
 def getShadeFile(file):
 	'''Get shade map for creating shade value vectors
@@ -421,47 +423,57 @@ def plotDifElev(outputname,outDir,x,y,colour):
 	return 0
 #
 #
-# MAIN
+################################### MAIN ###################################
+#
+# To run this you will need the following:
+# A shading file where each pixel represents shading on the glacier at each julian day to be modelled
+# A temperature data file for each julian day to be modelled
+# A stake data file containing winter balance values and coordinates for each stake
+# A settings file
+# The directory structure I have used here is as follows ('yyyy' should be replaced by the year):
+# /InData/yyyy
+# /Indata/yyyy/weather/weatheryyyy.csv
+# /Indata/yyyy/StakeReadings.csv
+# /Indata/settings.txt
+# /Output/
+# /Output/Shades/SG_shade.tif 		This file is here as it is the output of another script
+# /Output/yyyy/		These are created by this script as needed
+# /Scripts/
+#
+# Format examples:
+	# settings.txt (note that if 'ExportDate' omitted then all dates between bW and final temperature reading exported):
+		# Elevation=1150
+		# jdayBw=115
+		# ExportDate=236,256
+		# ShadeStart=100
+	# weatheryyyy.csv:
+		# Date,Temp
+		# 2010-01-25,-8.3
+	# StakeReadings.csv:
+		# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
+		# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
 #
 time_zero = datetime.now()
 time_one = time_zero
+#
 # Get shading data
 # Location of file containing a multiband raster, each band represents the shading on one day. 1 = no shade, 0 = really quite dark
 shadefile = '../Output/Shades/SG_shade.tif'
 # Read the shade factor raster in to memory
 raster, transf, bandcount = getShadeFile(shadefile)
+#
 # [2009,2010,2011,2012,2013]
-# Choose which data set is to be run. This section could be simplified and shortened by introducing a naming convention for the raw data file
+# Choose which data set is to be run.
 for year in [2012]:
 	#
 	strYear = str(year)
 	dataLoc = '../InData/' + strYear
-	refElev, jdayBw, jdayBs = getSettings(dataLoc)
-	print "For year %s following settings used: " %(strYear)
-	print "refElev set to %s" %(refElev)
-	print "jdayBw set to %s" %(jdayBw)
-	print "jdayBs set to "
-	print jdayBs
 	#
 	# Temperature data. Following two lines are example of input format:
 	# Date,Temp
 	# 2010-01-25,-8.3
 	weather = 'weather' + strYear + '.csv'
 	TfileName = os.path.join(dataLoc, weather)
-	#
-	# Stake data. Following two lines are example of input format:
-	# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
-	# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-		SfileName =os.path.join(dataLoc, 'StakeReadings.csv')
-	#
-	# Directory for output
-	outputDir = os.path.join('../Output/', strYear)
-	if not os.path.exists(outputDir):
-		os.makedirs(outputDir)
-		outputname = strYear +'_DDM'
-		truthDir = dataLoc
-		truthfiles = filelist(truthDir,'csv')
-	#
 	# Read Temperature data from csv file and convert dates to julian days. Date format '%Y-%m-%d' is SMHI's
 	TinFile = open(TfileName,'rb')
 	dates = []
@@ -474,6 +486,27 @@ for year in [2012]:
 		times.append(int(jdate))
 		temps.append(float(line['Temp'].strip()))
 	TinFile.close()
+	#
+	# Stake data. Following two lines are example of input format:
+	# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
+	# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
+	SfileName =os.path.join(dataLoc, 'StakeReadings.csv')
+	# File not read until loop through parameters. This could be improved by creating point object first and then inserting parameters on each run.
+	#
+	# Get settings for model: AWS elevation, date of snow probing, dates for model export, first date in shading file (could start this at 1 by default but
+	# shading file created for limited range of dates to reduce file size)
+	refElev, jdayBw, jdatelist, startday = getSettings(dataLoc, times[-1])
+	print "For year %s following settings used: " %(strYear)
+	print "refElev set to %s" %(refElev)
+	print "jdayBw set to %s" %(jdayBw)
+	#
+	# Directory for output
+	outputDir = os.path.join('../Output/', strYear)
+	if not os.path.exists(outputDir):
+		os.makedirs(outputDir)
+		outputname = strYear +'_DDM'
+		truthDir = dataLoc
+		truthfiles = filelist(truthDir,'csv')
 	#
 	# Set test to zero to run a single set of parameters and don't compare results with measured data
 	test = 0
