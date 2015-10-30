@@ -4,11 +4,12 @@
 __author__ = 'Andrew Mercer'
 __contact__ = 'mercergeoinfo@gmail.com'
 __maintainer__ = 'Andrew Mercer'
-__version__ = '2.0'
-__date__ = '17/03/2015'
+__version__ = '2.1'
+__date__ = '30/10/2015'
 #
 # Created: 16/04/2014
-# Edits: 16/01/2015
+# Edits:
+#		16/01/2015
 #		20/01/2015
 #		21/01/2015
 #		26/01/2015
@@ -16,8 +17,7 @@ __date__ = '17/03/2015'
 #		05/02/2015
 #		16/02/2015
 #		17/02/2015
-# Version: 2.0
-# Andrew Mercer
+#		17/03/2015
 # This file runs a degree day melt model on test data from Storglaciaren
 # It is a "working" version, running data from the probing grid
 #
@@ -35,7 +35,7 @@ import numpy as np
 #import scipy.stats as stats
 from scipy.stats.stats import nanmean
 from osgeo import gdal
-from osgeo import ogr
+#from osgeo import ogr
 from osgeo import osr
 from osgeo.gdalconst import *
 ## PLOT TOOLS
@@ -208,6 +208,52 @@ def pt2fmt(pt):
 		}
 	return fmttypes.get(pt, 'x')
 #
+def getSettings(DataLoc):
+	'''Set weather station elevation, julian day of last winter probing and list of julian days for which melt sum to be calculated and first day in shade model.
+	to use: refElev, jdayBw, jdayBs, startday = getSettings(DataLoc)
+	File (settings.txt) to be placed as so ../InData/yyyy/settings.txt, where yyyy is the relevant year.
+	Example:
+	Elevation=1150
+	jdayBw=115
+	jdayBs=236,256
+	'''
+	# Called by:
+	#
+	settingsFile = os.path.join((DataLoc, 'settings.txt')
+	settings = {}
+	InFile = open(settingsFile,'rb')
+	# Check contents and set up dictionary
+	for row in InFile:
+		line = row.strip().split('=')
+		print line
+		settings[line[0].strip()]=line[1].strip()
+	# Set elevation of weather station
+	if 'Elevation' not in settings:
+		settings['Elevation'] = 1150
+		print "Elevation not found. Default value %s used" %(settings['Elevation'])
+	refElev = settings['Elevation']
+	# Set julian day for probing data
+	if 'jdayBw' not in settings:
+		settings['jdayBw'] = 115
+		print "jdayBw not found. Default value %s used" %(settings['jdayBw'])
+	jdayBw = settings['jdayBw']
+	# Set list of julian days for calculation of melt
+	jdayBs = []
+	if 'jdayBs' not in settings:
+		jdayBs.append(256)
+		print "jdayBs not found. Default, single value %s used" %(jdayBs[0])
+	else:
+		Bsdays = settings['jdayBs'].split(',')
+		for i in Bsdays:
+			jdayBs.append(int(i))
+	settings['jdayBs'] = jdayBs
+	# Give the Julian day at which the shade raster starts. This should not vary from year to year.
+	if 'ShadeStart' not in settings:
+		startday = 100
+	else:
+		startday = int(settings['ShadeStart'])
+	return refElev, jdayBw, jdayBs, startday
+#
 def getShadeFile(file):
 	'''Get shade map for creating shade value vectors
 	To use: raster, transf, bandcount = getShadeFile(file)'''
@@ -221,7 +267,7 @@ def getShadeFile(file):
 		sys.exit(1)
 	# Get coordinate system parameters
 	projec = raster.GetProjection()
-	srs=osr.SpatialReference(wkt=projec)
+	srs=osr.SpatialReference(wkt=projec) # pyflakes - unused
 	transf = raster.GetGeoTransform()
 	bandcount = raster.RasterCount
 	#
@@ -237,13 +283,13 @@ def GetShadeVals(x,y, raster, transf, bandcount, vals, startday):
 	if not success:
 		print "Failed InvGeoTransform()"
 		sys.exit(1)
-	rows = raster.RasterYSize
-	cols = raster.RasterXSize
+	rows = raster.RasterYSize # pyflakes - unused
+	cols = raster.RasterXSize # pyflakes - unused
 	xpix, ypix = gdal.ApplyGeoTransform(transfInv, x, y)
 	# Read the file band to a matrix called band_1
 	for i in range(1,bandcount+1):
 		band = raster.GetRasterBand(i)
-		bandtype = gdal.GetDataTypeName(band.DataType)
+		bandtype = gdal.GetDataTypeName(band.DataType) # pyflakes - unused
 		if band is None:
 			continue
 		structval = band.ReadRaster(int(xpix), int(ypix), 1,1, buf_type = band.DataType )
@@ -252,48 +298,66 @@ def GetShadeVals(x,y, raster, transf, bandcount, vals, startday):
 		vals[i] = intval[0]
 	return vals
 #
-def import2vector(fileName):
-	"""Imports the data as vectors in a dictionary."""
+def import2vector(fileName, dateString = '%d/%m/%y %H:%M:%S'):
+	'''Imports the data as vectors in a dictionary. dateString is optional and can be set to match datetime format
+	To use: db = import2vector(filename) or db = import2vector(filename, dateString = '%d/%m/%y %H:%M:%S')'''
+	# Called by:
+	# Open file
 	InFile = open(fileName,'rb')
-	Name = os.path.basename(fileName).split('.')[0]
-	# Check if file has iButton header
 	line = InFile.next()
+	Name = os.path.basename(fileName).split('.')[0]
+	# Get headers
 	Headers = line.strip().split(',')
+	# Create dictionary for data
 	data = {}
-	data['Source'] = Name
+	data['Data'] = {}
+	data['Description'] = {}
+	data['Description']['Source'] = Name
 	i=0
-	#
+	# Set up list of Nan values
 	nanlist = ['NAN','NaN','nan','NULL','null','-9999',-9999,'']
+	# Read through data file
 	for i in Headers:
-		data[i] = []
+		data['Data'][i] = []
 	for row in InFile:
 		if row != "\n":
 			# Split read line of data into list
 			dataIn = row.strip().split(',')
 			for i in range(len(dataIn)):
+				# Check for NaN and empty values
 				if dataIn[i] in nanlist:
-				#if dataIn[i] == 'nan' or dataIn[i] == 'NaN' or dataIn[i] == 'NULL' :
 					 dataIn[i] = np.nan
-					 #data[Headers[i]].append(dataIn[i])
-				elif dataIn[i] == "":
-					dataIn[i] = np.nan
-					#data[Headers[i]].append(dataIn[i])
 				else:
+					# Try date formatted data conversion
 					try:
-						dataIn[i] = datetime.strptime(dataIn[i],'%d/%m/%y %H:%M:%S')
+						dataIn[i] = datetime.strptime(dataIn[i],dateString)
 					except:
+						# Try converting to float
 						try:
 							dataIn[i] = float(dataIn[i])
 						except:
+							# Leave as string
 							dataIn[i] = dataIn[i]
-				data[Headers[i]].append(dataIn[i])
+				# Add to vector
+				data['Data'][Headers[i]].append(dataIn[i])
 	for i in Headers:
-		data[i] = np.array(data[i])
+		# Convert to numpy arrays
+		data['Data'][i] = np.array(data['Data'][i])
+		try:
+			# Create posts containing basic statistics for each numerical column (vector)
+			data['Description'][(str(i)+'_min')] = np.nanmin(data['Data'][i])
+			data['Description'][(str(i)+'_max')] = np.nanmax(data['Data'][i])
+			data['Description'][(str(i)+'_mean')] = np.nanmean(data['Data'][i])
+			data['Description'][(str(i)+'_stdDev')] = np.nanstd(data['Data'][i])
+			data['Description'][(str(i)+'_median')] = np.median(data['Data'][i])
+		except:
+			print "\nStatistics not computable for %s\n" % str(i)
 	return data
 #
 def meltDataOut(pointKeys, points, outDir):
 	'''Write results of melt model to csv file
 	To use: meltDataOut(pointKeys, points, outDir)'''
+	# Called by:
 	outFile = os.path.join(outDir,'melt.csv')
 	# Create string vector from output dates for Bs and Bn
 	outString = []
@@ -315,25 +379,28 @@ def meltDataOut(pointKeys, points, outDir):
 	writer = None
 #
 def plotDifElev(outputname,outDir,x,y,colour):
-	'''Plot modelled data '''
+	'''Plot modelled data.
+	To use: plotDifElev(outputname,outDir,x,y,colour)'''
+	# Called by:
+	#
 	# Plot the modelled data
 	matplotlib.rcParams['axes.grid'] = True
 	matplotlib.rcParams['legend.fancybox'] = True
-	#matplotlib.rcParams['figure.figsize'] = 18, 9 #Mine
-	#matplotlib.rcParams['figure.figsize'] = 16.54, 11.69 #A3
-	matplotlib.rcParams['figure.figsize'] = 11.69, 8.27 #A4
+	#matplotlib.rcParams['figure.figsize'] = 18, 9 # Mine
+	#matplotlib.rcParams['figure.figsize'] = 16.54, 11.69 # A3
+	matplotlib.rcParams['figure.figsize'] = 11.69, 8.27 # A4
 	matplotlib.rcParams['savefig.dpi'] = 300
 	plotName = outputname + '.pdf'
 	pp1 = PdfPages(os.path.join(outDir,plotName))
 	fig1 = plt.figure(1)
 	ax1 = fig1.add_subplot(111)
-	lnclr = ['k','r','g','b','y','c','m']
-	lnsty = ['-','--','-.',':']
-	mrsty = ['o','s','v','*','x','+','1','2','3','4']
+	lnclr = ['k','r','g','b','y','c','m'] # pyflakes - unused
+	lnsty = ['-','--','-.',':'] # pyflakes - unused
+	mrsty = ['o','s','v','*','x','+','1','2','3','4'] # pyflakes - unused
 	xmax = max(x)
 	xmin = min(x)
-	ymax = 3
-	ymin = -3
+	ymax = 3 # pyflakes - unused
+	ymin = -3 # pyflakes - unused
 	ax1.plot(x,y, color=colour, marker='o', linestyle='o', label=outputname)
 	matplotlib.pyplot.axes().set_position([0.04, 0.065, 0.8, 0.9])
 	ax1.legend(bbox_to_anchor=(0.0, 0), loc=3, borderaxespad=0.1, ncol=3, title = "Zone, Day")
@@ -343,7 +410,7 @@ def plotDifElev(outputname,outDir,x,y,colour):
 	#plt.axis([xmin, xmax, ymin, ymax*1.2])
 	plt.axis([xmin, xmax, -2, 2])
 	# for pnt in range(len(dbvecs[jd]['Stake'])):
-# 		ax1.annotate(dbvecs[jd]['Stake'][pnt],xy=(dbvecs[jd]['Elevation'][pnt],1.8), rotation=90)
+#		ax1.annotate(dbvecs[jd]['Stake'][pnt],xy=(dbvecs[jd]['Elevation'][pnt],1.8), rotation=90)
 	plt.xlabel('Elevation (m.a.s.l.')
 	plt.ylabel('Measured - Modelled Melt (m w.e.)')
 	plt.title('Measured - Modelled against Elevation')
@@ -363,113 +430,37 @@ time_one = time_zero
 shadefile = '../Output/Shades/SG_shade.tif'
 # Read the shade factor raster in to memory
 raster, transf, bandcount = getShadeFile(shadefile)
-# Give the Julian day at which the shade raster starts
-startday = 100
 # [2009,2010,2011,2012,2013]
 # Choose which data set is to be run. This section could be simplified and shortened by introducing a naming convention for the raw data file
-for year in [2012] :
+for year in [2012]:
 	#
-	if year == 2009:
-		# Temperature data: Following two lines are example of input format
-		# Date,Temp
-		# 2010-01-25,-8.3
-		TfileName = '../InData/SMHI/SMHI2009.csv' # 2009
-		refElev = 1150
-		# Stake data: Following two lines are example of input format
-		# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
-		# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-		SfileName = '../InData/2009/256.csv' # 2010
-		# Give day of last winter probing (julian day for Bw)
-		jdayBw = 115 # 2009
-		# Output melt sum at julian days to csv
-		jdatelist = [256] # 2009
-		# Directory for output
-		outputDir = "../Output/2009/" # 2009
-		outputname = '2009_DDM' # 2009
-		truthDir = '../InData/2009/' # 2009
-		truthfiles = filelist(truthDir,'csv')
-	elif year == 2010:
-		# Temperature data: Following two lines are example of input format
-		# Date,Temp
-		# 2010-01-25,-8.3
-		TfileName = '../InData/SMHI/SMHI2010.csv' # 2010
-		refElev = 1150
-		# Stake data: Following two lines are example of input format
-		# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
-		# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-		SfileName = '../InData/2010/256.csv' # 2010
-		# Give day of last winter probing (julian day for Bw)
-		jdayBw = 105 # 2010
-		# Output melt sum at julian days to csv
-		jdatelist = [256] # 2010
-		# Directory for output
-		outputDir = "../Output/2010/" # 2010
-		outputname = '2010_DDM'
-		truthDir = '../InData/2010/' # 2010
-		truthfiles = filelist(truthDir,'csv')
-	elif year == 2011:
-		# Temperature data: Following two lines are example of input format
-		# Date,Temp
-		# 2010-01-25,-8.3
-		TfileName = '../InData/SMHI/TRS2011.csv' # 2011
-		refElev = 1150
-		# Stake data: Following two lines are example of input format
-		# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
-		# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-		SfileName = '../InData/2011/257.csv' # 2011
-		# Give day of last winter probing (julian day for Bw)
-		jdayBw = 115 # 2010
-		# Output melt sum at julian days to csv
-		jdatelist = [257] # 2010
-		# Directory for output
-		outputDir = "../Output/2011/" # 2011
-		outputname = '2011_DDM'
-		truthDir = '../InData/2011/' # 2011
-		truthfiles = filelist(truthDir,'csv')
-	elif year == 2012:
-		# Temperature data:  Following two lines are example of input format
-		# Date,Temp
-		# 2010-01-25,-8.3
-		TfileName = '../InData/SMHI/SMHI2012.csv' # 2012
-		refElev = 1150
-		# Stake data: Following two lines are example of input format
-		# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
-		# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-		#SfileName = '../InData/2012/257.csv' # 2012
-		SfileName = '../InData/2012/2012melt_r4.csv' # 2012
-		# Give day of last winter probing (julian day for Bw)
-		jdayBw = 115 # 2012
-		# Output melt sum at julian days to csv
-		#jdatelist = [247] # 2012
-		jdatelist = [186,204,226,247,257] # 2012
-		# Directory for output
-		outputDir = "../Output/2012/" # 2012
-		outputname = '2012_DDM'
-		truthDir = '../InData/2012/' # 2012
-		truthfiles = filelist(truthDir,'csv')
-	elif year == 2013:
-		# Temperature data:  Following two lines are example of input format
-		# Date,Temp
-		# 2010-01-25,-8.3
-		TfileName = '../InData/SMHI/SMHI2013.csv' # 2013
-		refElev = 1150
-		# Stake data: Following two lines are example of input format
-		# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
-		# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-		SfileName = '../InData/2013/256.csv' # 2013
-		# Give day of last winter probing (julian day for Bw)
-		jdayBw = 114 # 2013
-		# Output melt sum at julian days to csv
-		#jdatelist = [256] # 2013
-		jdatelist = [194,198,211,224,256] # 2013
-		# Directory for output
-		outputDir = "../Output/2013/" # 2013
-		outputname = '2013_DDM'
-		truthDir = '../InData/2013/' # 2013
-		truthfiles = filelist(truthDir,'csv')
+	strYear = str(year)
+	dataLoc = '../InData/' + strYear
+	refElev, jdayBw, jdayBs = getSettings(dataLoc)
+	print "For year %s following settings used: " %(strYear)
+	print "refElev set to %s" %(refElev)
+	print "jdayBw set to %s" %(jdayBw)
+	print "jdayBs set to "
+	print jdayBs
 	#
+	# Temperature data. Following two lines are example of input format:
+	# Date,Temp
+	# 2010-01-25,-8.3
+	weather = 'weather' + strYear + '.csv'
+	TfileName = os.path.join(dataLoc, weather)
+	#
+	# Stake data. Following two lines are example of input format:
+	# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
+	# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
+		SfileName =os.path.join(dataLoc, 'StakeReadings.csv')
+	#
+	# Directory for output
+	outputDir = os.path.join('../Output/', strYear)
 	if not os.path.exists(outputDir):
 		os.makedirs(outputDir)
+		outputname = strYear +'_DDM'
+		truthDir = dataLoc
+		truthfiles = filelist(truthDir,'csv')
 	#
 	# Read Temperature data from csv file and convert dates to julian days. Date format '%Y-%m-%d' is SMHI's
 	TinFile = open(TfileName,'rb')
@@ -484,17 +475,16 @@ for year in [2012] :
 		temps.append(float(line['Temp'].strip()))
 	TinFile.close()
 	#
-	#
-	# Set parameters for the melt model
 	# Set test to zero to run a single set of parameters and don't compare results with measured data
 	test = 0
-	if test == 0:
-		ddfSnow = [0.0038]
-		ddfSi = [0.0051]
-		ddfFirn = [0.0050]
-		ddfIce = [0.0054]
-		lapse = [0.0055]
-	elif test == 1:
+	#
+	# The parameters below are fixed for this study
+	elevLapse = (2100 - 1150) # Elevation dependant lapse rate
+	sfe = 1.5 # Shading factor exponent (adjusts the shading value at each point)
+	ELA = 1500 # Equilibrium line, for firn or ice under snow
+	#
+	# Set parameters for the melt model
+	if test == 1:
 		ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048]
 		ddfSi = [0.0045,0.0047,0.0049,0.0051]
 		ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
@@ -506,10 +496,8 @@ for year in [2012] :
 		ddfFirn = [0.0050]
 		ddfIce = [0.0054]
 		lapse = [0.0055]
-	# The parameters below are fixed for this study
-	elevLapse = (2100 - 1150) # Elevation dependant lapse rate
-	sfe = 1.5 # Shading factor exponent (adjusts the shading value at each point)
-	ELA = 1500 # Equilibrium line, for firn or ice under snow
+	#
+	#
 	# Calculate how many iterations are to be performed (feedback for user)
 	Snow = range(len(ddfSnow))
 	Super = range(len(ddfSi))
@@ -517,8 +505,10 @@ for year in [2012] :
 	Ice = range(len(ddfIce))
 	Lapse = range(len(lapse))
 	pltot = len(ddfSnow)*len(ddfSi)*len(ddfFirn)*len(ddfIce)*len(lapse)
-	print "Year: %d Iterations: %d" % (year,pltot)
-	if test != 0:
+	if test == 1:
+		print "Year: %d Iterations: %d" % (year,pltot)
+	#
+	if test == 1:
 		trudb = {} # FOR VERIFICATION OF RESULTS ONLY
 		for file in truthfiles: # FOR VERIFICATION OF RESULTS ONLY
 			trudb[file.split('.')[0]] = import2vector(os.path.join(truthDir,file)) # FOR VERIFICATION OF RESULTS ONLY
@@ -591,7 +581,7 @@ for year in [2012] :
 								points[j]['MeltModel'].meltInst(temps[i],times[i])
 						#
 						# Only write out results now if not running test, otherwise wait until assessed
-						if test == 0:
+						if test != 1:
 							# Output model data to file
 							# Get name of mb file
 							inname,inext,inpath,innamefull = namer(SfileName)
@@ -603,9 +593,9 @@ for year in [2012] :
 								for p in paramDict.items():
 									fp.write("%s:%2.6f\n" % p)
 						#
-						# MARKER - end of modelling
+						# MARKER - end of modelling. Everything after this point may be erased if the model is to be used without assessment of parameters
 						#
-						if test != 0:
+						if test == 1:
 							# Create database of vectors for assessment of model output
 							dbcomp = {}
 							# Get number of modelled objects
@@ -679,59 +669,56 @@ for year in [2012] :
 								parUsage['BsR2'].append(BsR2)
 								parUsage['BnR2'].append(BnR2)
 						#if max(bsR2list) >= bestBsR2 and max(bnR2list) >= bestBnR2:
-						if test == 0:
-							continue
-						else:
-							if test != 0 and ((max(bsR2list) < bestBsR2) or np.isnan(bestBsR2)):
-								time_i = datetime.now()
-								print "\n", time_i
-								if (max(bsR2list) > bestBsR2) or np.isnan(bestBsR2):
-									bestBsR2 = max(bsR2list)
-									print "new best Bs R2: %2.3f" % bsR2list[-1]
-								if (max(bnR2list) > bestBnR2)or np.isnan(bestBnR2):
-									bestBnR2 = max(bnR2list)
-									print "new best Bn R2: %2.3f" % bnR2list[-1]
-								#
-								# Output model data to file
-								# Get name of mb file
-								# inname,inext,inpath,innamefull = namer(SfileName)
-								flnm = str(counter)
-								outDir = makeDir(outputDir, flnm)
-								meltDataOut(pointKeys, points, outDir)
-								# Write parameters used to text file
-								paramFile = os.path.join(outDir,'Parameters.txt')
-								with open (paramFile, 'w') as fp:
-									for p in paramDict.items():
-										fp.write("%s:%2.6f\n" % p)
-								#
-								x = dbcomp['Elevation']
-								for d in jdatelist:
-									obsBs = []
-									obsBn = []
-									for stk in dbcomp['Stake']:
-										try:
-											ind = np.where(trudb[str(d)]['Stake'] == stk)
-											bs = trudb[str(d)]['Bs'][ind][0]
-											bn = trudb[str(d)]['Bn'][ind][0]
-										except:
-											bs = np.nan
-											bn = np.nan
-										obsBs.append(bs)
-										obsBn.append(bn)
-									bsn = "Mod_Bs_" + str(d)
-									bnn = "Mod_Bn_" + str(d)
-									modBs = dbcomp[bsn]
-									modBn = dbcomp[bnn]
-									bsDiff = obsBs - modBs
-									bnDiff = obsBn - modBn
-									pltnmBs = 'Bs_diff_' + str(d)
-									pltnmBn = 'Bn_diff_' + str(d)
-									plotDifElev(pltnmBs,outDir,x,bsDiff,'r')
-									plotDifElev(pltnmBn,outDir,x,bnDiff,'k')
-							pltot = pltot -1
-							counter = counter +1
+						if test == 1 and ((max(bsR2list) < bestBsR2) or np.isnan(bestBsR2)):
+							time_i = datetime.now()
+							print "\n", time_i
+							if (max(bsR2list) > bestBsR2) or np.isnan(bestBsR2):
+								bestBsR2 = max(bsR2list)
+								print "new best Bs R2: %2.3f" % bsR2list[-1]
+							if (max(bnR2list) > bestBnR2)or np.isnan(bestBnR2):
+								bestBnR2 = max(bnR2list)
+								print "new best Bn R2: %2.3f" % bnR2list[-1]
+							#
+							# Output model data to file
+							# Get name of mb file
+							# inname,inext,inpath,innamefull = namer(SfileName)
+							flnm = str(counter)
+							outDir = makeDir(outputDir, flnm)
+							meltDataOut(pointKeys, points, outDir)
+							# Write parameters used to text file
+							paramFile = os.path.join(outDir,'Parameters.txt')
+							with open (paramFile, 'w') as fp:
+								for p in paramDict.items():
+									fp.write("%s:%2.6f\n" % p)
+							#
+							x = dbcomp['Elevation']
+							for d in jdatelist:
+								obsBs = []
+								obsBn = []
+								for stk in dbcomp['Stake']:
+									try:
+										ind = np.where(trudb[str(d)]['Stake'] == stk)
+										bs = trudb[str(d)]['Bs'][ind][0]
+										bn = trudb[str(d)]['Bn'][ind][0]
+									except:
+										bs = np.nan
+										bn = np.nan
+									obsBs.append(bs)
+									obsBn.append(bn)
+								bsn = "Mod_Bs_" + str(d)
+								bnn = "Mod_Bn_" + str(d)
+								modBs = dbcomp[bsn]
+								modBn = dbcomp[bnn]
+								bsDiff = obsBs - modBs
+								bnDiff = obsBn - modBn
+								pltnmBs = 'Bs_diff_' + str(d)
+								pltnmBn = 'Bn_diff_' + str(d)
+								plotDifElev(pltnmBs,outDir,x,bsDiff,'r')
+								plotDifElev(pltnmBn,outDir,x,bnDiff,'k')
+						pltot = pltot -1
+						counter = counter +1
 	# For test runs, write out csv list of R squared for parameter values used
-	if test != 0:
+	if test == 1:
 		paramFile = os.path.join(outputDir,'UsedParameters.csv')
 		keys = ['BsR2','BnR2','ddfSnow','ddfSi','ddfFirn','ddfIce','lapse']
 		with open (paramFile, 'w') as fp:
@@ -741,5 +728,5 @@ for year in [2012] :
 		ParamDir = makeDir('../Edit/', 'Parameters')
 		shutil.copyfile(paramFile,os.path.join(ParamDir,(str(year)+'UsedParameters.csv')))
 # If test run, do analysis of the best values
-if test != 0:
+if test == 1:
 	ParameterAnalysis.main()
