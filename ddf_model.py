@@ -220,7 +220,7 @@ def getSettings(DataLoc, lastDate):
 	'''
 	# Called by:
 	#
-	settingsFile = os.path.join((DataLoc, 'settings.txt')
+	settingsFile = os.path.join(DataLoc, 'settings.txt')
 	settings = {}
 	InFile = open(settingsFile,'rb')
 	# Check contents and set up dictionary
@@ -246,7 +246,7 @@ def getSettings(DataLoc, lastDate):
 			jdatelist.append(date)
 		print "ExportDates not found.\nDefaults to exporting all dates between last probing %s and last temperature reading %s" %(jdayBw, lastDate)
 	else:
-		expDays = settings['ExportDate'].spit(',')
+		expDays = settings['ExportDates'].split(',')
 		for j in expDays:
 			jdatelist.append(int(j))
 	# Give the Julian day at which the shade raster starts. This should not vary from year to year.
@@ -432,7 +432,7 @@ def plotDifElev(outputname,outDir,x,y,colour):
 # A settings file
 # The directory structure I have used here is as follows ('yyyy' should be replaced by the year):
 # /InData/yyyy
-# /Indata/yyyy/weather/weatheryyyy.csv
+# /Indata/yyyy/weatheryyyy.csv
 # /Indata/yyyy/StakeReadings.csv
 # /Indata/settings.txt
 # /Output/
@@ -449,7 +449,7 @@ def plotDifElev(outputname,outDir,x,y,colour):
 	# weatheryyyy.csv:
 		# Date,Temp
 		# 2010-01-25,-8.3
-	# StakeReadings.csv:
+	# StakeDatayyyy.csv:
 		# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
 		# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
 #
@@ -463,8 +463,9 @@ shadefile = '../Output/Shades/SG_shade.tif'
 raster, transf, bandcount = getShadeFile(shadefile)
 #
 # [2009,2010,2011,2012,2013]
+# [2005,2006,2007,2008]
 # Choose which data set is to be run.
-for year in [2012]:
+for year in [2005,2006,2007,2008]:
 	#
 	strYear = str(year)
 	dataLoc = '../InData/' + strYear
@@ -490,7 +491,8 @@ for year in [2012]:
 	# Stake data. Following two lines are example of input format:
 	# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
 	# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-	SfileName =os.path.join(dataLoc, 'StakeReadings.csv')
+	stakeFileName = 'StakeData' + strYear + '.csv'
+	SfileName =os.path.join(dataLoc, stakeFileName)
 	# File not read until loop through parameters. This could be improved by creating point object first and then inserting parameters on each run.
 	#
 	# Get settings for model: AWS elevation, date of snow probing, dates for model export, first date in shading file (could start this at 1 by default but
