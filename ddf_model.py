@@ -506,12 +506,14 @@ for year in [2005,2006,2007,2008]:
 	outputDir = os.path.join('../Output/', strYear)
 	if not os.path.exists(outputDir):
 		os.makedirs(outputDir)
-		outputname = strYear +'_DDM'
-		truthDir = dataLoc
-		truthfiles = filelist(truthDir,'csv')
+	outputname = strYear +'_DDM'
+	truthDir = os.path.join(dataLoc,"truthing")
+	truthfiles = filelist(truthDir,'csv')
+	print "Truthing files: "
+	for tf in truthfiles: print tf
 	#
 	# Set test to zero to run a single set of parameters and don't compare results with measured data
-	test = 0
+	test = 1
 	#
 	# The parameters below are fixed for this study
 	elevLapse = (2100 - 1150) # Elevation dependant lapse rate
@@ -670,9 +672,9 @@ for year in [2005,2006,2007,2008]:
 								obsBn = []
 								for stk in dbcomp['Stake']:
 									try:
-										ind = np.where(trudb[str(d)]['Stake'] == stk)
-										bs = trudb[str(d)]['Bs'][ind][0]
-										bn = trudb[str(d)]['Bn'][ind][0]
+										ind = np.where(trudb[str(d)]['Data']['Stake'] == stk)
+										bs = trudb[str(d)]['Data']['Bs'][ind][0]
+										bn = trudb[str(d)]['Data']['Bn'][ind][0]
 									except:
 										bs = np.nan
 										bn = np.nan
@@ -703,53 +705,53 @@ for year in [2005,2006,2007,2008]:
 								parUsage['lapse'].append(paramDict['lapse'])
 								parUsage['BsR2'].append(BsR2)
 								parUsage['BnR2'].append(BnR2)
-						#if max(bsR2list) >= bestBsR2 and max(bnR2list) >= bestBnR2:
-						if test == 1 and ((max(bsR2list) < bestBsR2) or np.isnan(bestBsR2)):
-							time_i = datetime.now()
-							print "\n", time_i
-							if (max(bsR2list) > bestBsR2) or np.isnan(bestBsR2):
-								bestBsR2 = max(bsR2list)
+							#
+						if bsR2list[-1] == max(bsR2list):
+							if bsR2list[-1] >= bestBsR2 or np.isnan(bestBsR2):
+								time_i = datetime.now()
+								print "\n %s latest Bs R^2:%2.3f, best Bs R^2: %2.3f at %s" %(counter, bsR2list[-1], bestBsR2, time_i)
+								bestBsR2 = bsR2list[-1]
 								print "new best Bs R2: %2.3f" % bsR2list[-1]
-							if (max(bnR2list) > bestBnR2)or np.isnan(bestBnR2):
-								bestBnR2 = max(bnR2list)
-								print "new best Bn R2: %2.3f" % bnR2list[-1]
-							#
-							# Output model data to file
-							# Get name of mb file
-							# inname,inext,inpath,innamefull = namer(SfileName)
-							flnm = str(counter)
-							outDir = makeDir(outputDir, flnm)
-							meltDataOut(pointKeys, points, outDir)
-							# Write parameters used to text file
-							paramFile = os.path.join(outDir,'Parameters.txt')
-							with open (paramFile, 'w') as fp:
-								for p in paramDict.items():
-									fp.write("%s:%2.6f\n" % p)
-							#
-							x = dbcomp['Elevation']
-							for d in jdatelist:
-								obsBs = []
-								obsBn = []
-								for stk in dbcomp['Stake']:
-									try:
-										ind = np.where(trudb[str(d)]['Stake'] == stk)
-										bs = trudb[str(d)]['Bs'][ind][0]
-										bn = trudb[str(d)]['Bn'][ind][0]
-									except:
-										bs = np.nan
-										bn = np.nan
-									obsBs.append(bs)
-									obsBn.append(bn)
-								bsn = "Mod_Bs_" + str(d)
-								bnn = "Mod_Bn_" + str(d)
-								modBs = dbcomp[bsn]
-								modBn = dbcomp[bnn]
-								bsDiff = obsBs - modBs
-								bnDiff = obsBn - modBn
-								pltnmBs = 'Bs_diff_' + str(d)
-								pltnmBn = 'Bn_diff_' + str(d)
-								plotDifElev(pltnmBs,outDir,x,bsDiff,'r')
-								plotDifElev(pltnmBn,outDir,x,bnDiff,'k')
+								if (max(bnR2list) > bestBnR2)or np.isnan(bestBnR2):
+									bestBnR2 = max(bnR2list)
+									print "new best Bn R2: %2.3f" % bnR2list[-1]
+								#
+								# Output model data to file
+								# Get name of mb file
+								# inname,inext,inpath,innamefull = namer(SfileName)
+								flnm = str(counter)
+								outDir = makeDir(outputDir, flnm)
+								meltDataOut(pointKeys, points, outDir)
+								# Write parameters used to text file
+								paramFile = os.path.join(outDir,'Parameters.txt')
+								with open (paramFile, 'w') as fp:
+									for p in paramDict.items():
+										fp.write("%s:%2.6f\n" % p)
+								#
+								x = dbcomp['Elevation']
+								for d in jdatelist:
+									obsBs = []
+									obsBn = []
+									for stk in dbcomp['Stake']:
+										try:
+											ind = np.where(trudb[str(d)]['Data']['Stake'] == stk)
+											bs = trudb[str(d)]['Data']['Bs'][ind][0]
+											bn = trudb[str(d)]['Data']['Bn'][ind][0]
+										except:
+											bs = np.nan
+											bn = np.nan
+										obsBs.append(bs)
+										obsBn.append(bn)
+									bsn = "Mod_Bs_" + str(d)
+									bnn = "Mod_Bn_" + str(d)
+									modBs = dbcomp[bsn]
+									modBn = dbcomp[bnn]
+									bsDiff = obsBs - modBs
+									bnDiff = obsBn - modBn
+									pltnmBs = 'Bs_diff_' + str(d)
+									pltnmBn = 'Bn_diff_' + str(d)
+									plotDifElev(pltnmBs,outDir,x,bsDiff,'r')
+									plotDifElev(pltnmBn,outDir,x,bnDiff,'k')
 						pltot = pltot -1
 						counter = counter +1
 	# For test runs, write out csv list of R squared for parameter values used
