@@ -524,7 +524,7 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
 	ELA = 1500 # Equilibrium line, for firn or ice under snow
 	#
 	# Set parameters for the melt model
-	if test == 0: # 2009 to 2013 best parameters
+	if test == 0: # Block 2, 2009 to 2013 best parameters
 		ddfSnow = [0.0038]
 		ddfSi = [0.0051]
 		ddfFirn = [0.0050]
@@ -536,18 +536,18 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
 		ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
 		ddfIce = [0.0043,0.0045,0.0047,0.0049,0.0051,0.0053,0.0055,0.0057]
 		lapse = [0.0042,0.0044,0.0046,0.0048,0.0050,0.0055,0.0057,0.0059,0.0061,0.0063,0.0065,0.0068,0.0070,0.0072,0.0074,0.0076]
-	elif test == 2: # 2005 to 2008 best parameters
-		ddfSnow=[0.004200]
-		ddfSi=[0.005100]
-		ddfFirn=[0.005000]
-		ddfIce=[0.005700]
-		lapse=[0.007200]
-	else: # 2009 to 2013 best parameters
-		ddfSnow = [0.0040]
-		ddfSi = [0.0048]
+	elif test == 2: # Block 1, 2005 to 2008 best parameters
+		ddfSnow=[0.0040]
+		ddfSi=[0.0048]
+		ddfFirn=[0.0050]
+		ddfIce=[0.0050]
+		lapse=[0.0064]
+	else: #All, 2005 to 2013 best parameters
+		ddfSnow = [0.0039]
+		ddfSi = [0.0049]
 		ddfFirn = [0.0050]
-		ddfIce = [0.0050]
-		lapse = [0.0064]
+		ddfIce = [0.0052]
+		lapse = [0.0059]
 	#
 	# Calculate how many iterations are to be performed (feedback for user)
 	Snow = range(len(ddfSnow))
