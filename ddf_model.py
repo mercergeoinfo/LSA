@@ -5,7 +5,7 @@ __author__ = 'Andrew Mercer'
 __contact__ = 'mercergeoinfo@gmail.com'
 __maintainer__ = 'Andrew Mercer'
 __version__ = '2.1'
-__date__ = '30/10/2015'
+__date__ = '03/11/2015'
 #
 # Created: 16/04/2014
 # Edits:
@@ -382,41 +382,41 @@ def meltDataOut(pointKeys, points, outDir):
 #
 def plotDifElev(outputname,outDir,x,y,colour):
 	'''Plot modelled data.
-	To use: plotDifElev(outputname,outDir,x,y,colour)'''
+	To use: plotDifElev(outputname, outDir, x, y, colour)'''
 	# Called by:
 	#
-	# Plot the modelled data
 	matplotlib.rcParams['axes.grid'] = True
 	matplotlib.rcParams['legend.fancybox'] = True
-	#matplotlib.rcParams['figure.figsize'] = 18, 9 # Mine
-	#matplotlib.rcParams['figure.figsize'] = 16.54, 11.69 # A3
+	# matplotlib.rcParams['figure.figsize'] = 18, 9 # Mine
+	# matplotlib.rcParams['figure.figsize'] = 16.54, 11.69 # A3
 	matplotlib.rcParams['figure.figsize'] = 11.69, 8.27 # A4
 	matplotlib.rcParams['savefig.dpi'] = 300
 	plotName = outputname + '.pdf'
 	pp1 = PdfPages(os.path.join(outDir,plotName))
 	fig1 = plt.figure(1)
 	ax1 = fig1.add_subplot(111)
-	lnclr = ['k','r','g','b','y','c','m'] # pyflakes - unused
-	lnsty = ['-','--','-.',':'] # pyflakes - unused
-	mrsty = ['o','s','v','*','x','+','1','2','3','4'] # pyflakes - unused
+	# lnclr = ['k','r','g','b','y','c','m'] # pyflakes - unused
+	# lnsty = ['-','--','-.',':'] # pyflakes - unused
+	# mrsty = ['o','s','v','*','x','+','1','2','3','4'] # pyflakes - unused
 	xmax = max(x)
 	xmin = min(x)
-	ymax = 3 # pyflakes - unused
-	ymin = -3 # pyflakes - unused
-	ax1.plot(x,y, color=colour, marker='o', linestyle='o', label=outputname)
+	# ymax = 3 # pyflakes - unused
+	# ymin = -3 # pyflakes - unused
+	labelString = outputname.split("_")[0] + " " + outputname.split("_")[-1]
+	ax1.plot(x,y, color=colour, marker='o', linestyle='None', label=labelString)
 	matplotlib.pyplot.axes().set_position([0.04, 0.065, 0.8, 0.9])
-	ax1.legend(bbox_to_anchor=(0.0, 0), loc=3, borderaxespad=0.1, ncol=3, title = "Zone, Day")
+	ax1.legend(bbox_to_anchor=(0.0, 0), loc=3, borderaxespad=0.1, ncol=3, title = "Component, Julian Day")
 	ax1.plot([xmin,xmax],[0,0],'-k')
 	#lastind = str(jdatelist[-1])
 	#ax1.plot([0,5],np.multiply(dbvecs[lastind]['slope'],[0,5]) + dbvecs[lastind]['intercept'],'-b')
 	#plt.axis([xmin, xmax, ymin, ymax*1.2])
 	plt.axis([xmin, xmax, -2, 2])
 	# for pnt in range(len(dbvecs[jd]['Stake'])):
-#		ax1.annotate(dbvecs[jd]['Stake'][pnt],xy=(dbvecs[jd]['Elevation'][pnt],1.8), rotation=90)
+	# ax1.annotate(dbvecs[jd]['Stake'][pnt],xy=(dbvecs[jd]['Elevation'][pnt],1.8), rotation=90)
 	plt.xlabel('Elevation (m.a.s.l.')
 	plt.ylabel('Measured - Modelled Melt (m w.e.)')
 	plt.title('Measured - Modelled against Elevation')
-	#plt.show()
+	# plt.show()
 	pp1.savefig(bbox_inches='tight')
 	pp1.close()
 	plt.close()
@@ -462,10 +462,15 @@ shadefile = '../Output/Shades/SG_shade.tif'
 # Read the shade factor raster in to memory
 raster, transf, bandcount = getShadeFile(shadefile)
 #
+# Set test to 0 to run a single set of parameters (2009 to 2013 best parameters) and don't compare results with measured data
+# Set test to 1 to run all parameters and compare results with field data
+# Set test to 2 to run 2005 to 2008 best parameters and compare results with field data
+# Set test to 3 (or higher) to run 2009 to 2013 best parameters and compare results with field data
+test = 3
 # [2009,2010,2011,2012,2013]
 # [2005,2006,2007,2008]
 # Choose which data set is to be run.
-for year in [2005,2006,2007,2008]:
+for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
 	#
 	strYear = str(year)
 	dataLoc = '../InData/' + strYear
@@ -512,8 +517,6 @@ for year in [2005,2006,2007,2008]:
 	print "Truthing files: "
 	for tf in truthfiles: print tf
 	#
-	# Set test to zero to run a single set of parameters and don't compare results with measured data
-	test = 1
 	#
 	# The parameters below are fixed for this study
 	elevLapse = (2100 - 1150) # Elevation dependant lapse rate
@@ -521,19 +524,30 @@ for year in [2005,2006,2007,2008]:
 	ELA = 1500 # Equilibrium line, for firn or ice under snow
 	#
 	# Set parameters for the melt model
-	if test == 1:
-		ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048]
-		ddfSi = [0.0045,0.0047,0.0049,0.0051]
-		ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
-		ddfIce = [0.0043,0.0045,0.0047,0.0049,0.0051,0.0053,0.0055,0.0057]
-		lapse = [0.0042,0.0044,0.0046,0.0048,0.0050,0.0055,0.0057,0.0059,0.0061,0.0063,0.0065,0.0068,0.0070,0.0072,0.0074,0.0076]
-	else:
+	if test == 0: # 2009 to 2013 best parameters
 		ddfSnow = [0.0038]
 		ddfSi = [0.0051]
 		ddfFirn = [0.0050]
 		ddfIce = [0.0054]
 		lapse = [0.0055]
-	#
+	elif test == 1:
+		ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048]
+		ddfSi = [0.0045,0.0047,0.0049,0.0051]
+		ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
+		ddfIce = [0.0043,0.0045,0.0047,0.0049,0.0051,0.0053,0.0055,0.0057]
+		lapse = [0.0042,0.0044,0.0046,0.0048,0.0050,0.0055,0.0057,0.0059,0.0061,0.0063,0.0065,0.0068,0.0070,0.0072,0.0074,0.0076]
+	elif test == 2: # 2005 to 2008 best parameters
+		ddfSnow=[0.004200]
+		ddfSi=[0.005100]
+		ddfFirn=[0.005000]
+		ddfIce=[0.005700]
+		lapse=[0.007200]
+	else: # 2009 to 2013 best parameters
+		ddfSnow = [0.0040]
+		ddfSi = [0.0048]
+		ddfFirn = [0.0050]
+		ddfIce = [0.0050]
+		lapse = [0.0064]
 	#
 	# Calculate how many iterations are to be performed (feedback for user)
 	Snow = range(len(ddfSnow))
@@ -541,11 +555,11 @@ for year in [2005,2006,2007,2008]:
 	Firn = range(len(ddfFirn))
 	Ice = range(len(ddfIce))
 	Lapse = range(len(lapse))
-	pltot = len(ddfSnow)*len(ddfSi)*len(ddfFirn)*len(ddfIce)*len(lapse)
-	if test == 1:
+	pltot = len(ddfSnow) * len(ddfSi) * len(ddfFirn) * len(ddfIce) * len(lapse)
+	if test != 0:
 		print "Year: %d Iterations: %d" % (year,pltot)
 	#
-	if test == 1:
+	if test != 0:
 		trudb = {} # FOR VERIFICATION OF RESULTS ONLY
 		for file in truthfiles: # FOR VERIFICATION OF RESULTS ONLY
 			trudb[file.split('.')[0]] = import2vector(os.path.join(truthDir,file)) # FOR VERIFICATION OF RESULTS ONLY
@@ -618,7 +632,7 @@ for year in [2005,2006,2007,2008]:
 								points[j]['MeltModel'].meltInst(temps[i],times[i])
 						#
 						# Only write out results now if not running test, otherwise wait until assessed
-						if test != 1:
+						if test == 0:
 							# Output model data to file
 							# Get name of mb file
 							inname,inext,inpath,innamefull = namer(SfileName)
@@ -632,7 +646,7 @@ for year in [2005,2006,2007,2008]:
 						#
 						# MARKER - end of modelling. Everything after this point may be erased if the model is to be used without assessment of parameters
 						#
-						if test == 1:
+						if test != 0:
 							# Create database of vectors for assessment of model output
 							dbcomp = {}
 							# Get number of modelled objects
@@ -682,20 +696,22 @@ for year in [2005,2006,2007,2008]:
 									obsBn.append(bn)
 								bsn = "Mod_Bs_" + str(d)
 								bnn = "Mod_Bn_" + str(d)
-								# Calculate 'errors'
+								# Calculate 'R-squared'
+								# Bs
 								modBs = dbcomp[bsn]
-								modBn = dbcomp[bnn]
 								obsBsmean = nanmean(obsBs)
-								obsBnmean = nanmean(obsBn)
 								obsBsMinModBs = obsBs - modBs
-								obsBnMinModBn = obsBn - modBn
 								obsBsMinMean = obsBs - obsBsmean
-								obsBnMinMean = obsBn - obsBnmean
 								BsR2 = 1 - ((np.nansum(obsBsMinModBs**2)) / (np.nansum(obsBsMinMean**2)))
-								BnR2 = 1 - ((np.nansum(obsBnMinModBn**2)) / (np.nansum(obsBnMinMean**2)))
 								paramDict[(bsn+'_R2')] = BsR2
-								paramDict[(bnn+'_R2')] = BnR2
 								bsR2list.append(BsR2)
+								# Bn
+								modBn = dbcomp[bnn]
+								obsBnmean = nanmean(obsBn)
+								obsBnMinModBn = obsBn - modBn
+								obsBnMinMean = obsBn - obsBnmean
+								BnR2 = 1 - ((np.nansum(obsBnMinModBn**2)) / (np.nansum(obsBnMinMean**2)))
+								paramDict[(bnn+'_R2')] = BnR2
 								bnR2list.append(BnR2)
 								# Add parameters used to results storage
 								parUsage['ddfSnow'].append(paramDict['ddfSnow'])
@@ -706,7 +722,7 @@ for year in [2005,2006,2007,2008]:
 								parUsage['BsR2'].append(BsR2)
 								parUsage['BnR2'].append(BnR2)
 							#
-						if bsR2list[-1] == max(bsR2list):
+						if test != 0 and bsR2list[-1] == max(bsR2list):
 							if bsR2list[-1] >= bestBsR2 or np.isnan(bestBsR2):
 								time_i = datetime.now()
 								print "\n %s latest Bs R^2:%2.3f, best Bs R^2: %2.3f at %s" %(counter, bsR2list[-1], bestBsR2, time_i)
@@ -755,7 +771,7 @@ for year in [2005,2006,2007,2008]:
 						pltot = pltot -1
 						counter = counter +1
 	# For test runs, write out csv list of R squared for parameter values used
-	if test == 1:
+	if test != 0:
 		paramFile = os.path.join(outputDir,'UsedParameters.csv')
 		keys = ['BsR2','BnR2','ddfSnow','ddfSi','ddfFirn','ddfIce','lapse']
 		with open (paramFile, 'w') as fp:
@@ -765,5 +781,5 @@ for year in [2005,2006,2007,2008]:
 		ParamDir = makeDir('../Edit/', 'Parameters')
 		shutil.copyfile(paramFile,os.path.join(ParamDir,(str(year)+'UsedParameters.csv')))
 # If test run, do analysis of the best values
-if test == 1:
+if test != 0:
 	ParameterAnalysis.main()
