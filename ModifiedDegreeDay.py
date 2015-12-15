@@ -4,8 +4,8 @@
 __author__ = 'Andrew Mercer'
 __contact__ = 'mercergeoinfo@gmail.com'
 __maintainer__ = 'Andrew Mercer'
-__version__ = '2.1'
-__date__ = '03/11/2015'
+__version__ = '3.0'
+__date__ = '15/12/2015'
 #
 # Created: 16/04/2014
 # Edits:
@@ -20,6 +20,7 @@ __date__ = '03/11/2015'
 #		17/03/2015
 # This file runs a degree day melt model on test data from Storglaciaren
 # It is a "working" version, running data from the probing grid
+# Reworking of ddf_model.py
 #
 from datetime import datetime
 import sys
@@ -28,6 +29,7 @@ import shutil
 import fnmatch
 import csv
 import struct
+import copy
 ## SCIENTIFIC
 #import math
 import numpy as np
@@ -579,50 +581,54 @@ for year in [2005]:
 	parUsage['BsR2'] = []
 	parUsage['BnR2'] = []
 	counter = 0
+	# Create vector for shade values
+	vals = []
+	for d in range(365):
+		vals.append(1)
+	# Read stake data
+	SinFile = open(SfileName,'rb')
+	stakeData = {}
+	# Read point data file with position and winter balance as of last winter probing (jdayBw) and send to model
+	for line in csv.DictReader(SinFile, delimiter=','):
+		stakeName = line['Stake'].strip()
+		stakeData[stakeName] = {}
+		# Coordinates
+		stakeData[stakeName]['easting'] = float(line['Easting'].strip())
+		stakeData[stakeName]['northing'] = float(line['Northing'].strip())
+		stakeData[stakeName]['elevation'] = float(line['Elevation'].strip())
+		# Get shading factor for location
+		try:
+			stakeData[stakeName]['Shadevals'] = GetShadeVals(stakeData[stakeName]['easting'], stakeData[stakeName]['northing'], raster, transf, bandcount, vals, startday)
+		except:
+			stakeData[stakeName]['Shadevals'] = vals
+		# Get the winter balance
+		stakeData[stakeName]['Bw'] = float(line['Bw'].strip())
+	#
+	# Parameters read into dictionary to be passed to model
+	paramDict = {}
+	paramDict['elevLapse'] = elevLapse
+	paramDict['sfe'] = sfe
+	paramDict['ELA'] = ELA
+	paramDict['refElev'] = refElev
 	for Snw in Snow:
+		paramDict['ddfSnow'] = ddfSnow[Snw]
 		for Spr in Super:
+			paramDict['ddfSi'] = ddfSi[Spr]
 			for Frn in Firn:
+				paramDict['ddfFirn'] = ddfFirn[Frn]
 				for Eci in Ice:
+					paramDict['ddfIce'] = ddfIce[Eci]
 					for Lps in Lapse:
-						# Parameters read into dictionary to be passed to model
-						paramDict = {}
-						paramDict['ddfSnow'] = ddfSnow[Snw]
-						paramDict['ddfSi'] = ddfSi[Spr]
-						paramDict['ddfFirn'] = ddfFirn[Frn]
-						paramDict['ddfIce'] = ddfIce[Eci]
 						paramDict['lapse'] = lapse[Lps]
-						paramDict['elevLapse'] = elevLapse
-						paramDict['sfe'] = sfe
-						paramDict['ELA'] = ELA
-						paramDict['refElev'] = refElev
 						#
-						# Create vector for shade values
-						vals = []
-						for d in range(365):
-							vals.append(1)
-						#
-						# Read stake data
-						SinFile = open(SfileName,'rb')
 						points = {}
-						# Read point data file with position and winter balance as of last winter probing (jdayBw) and send to model
-						for line in csv.DictReader(SinFile, delimiter=','):
-							data = {}
-							#data['name'] = line['Stake'].strip()
-							# Coordinates
-							data['easting'] = float(line['Easting'].strip())
-							data['northing'] = float(line['Northing'].strip())
-							data['elevation'] = float(line['Elevation'].strip())
-							# Get shading factor for location
-							try:
-								data['Shadevals'] = GetShadeVals(data['easting'], data['northing'], raster, transf, bandcount, vals, startday)
-								#print line['Stake'].strip()
-							except:
-								data['Shadevals'] = vals
-							# Get the winter balance
-							data['Bw'] = float(line['Bw'].strip())
+						data = copy.deepcopy(stakeData)
+						stakeNames = stakeData.keys()
+						# Read stake data
+						for stake in stakeNames:
 							# Send input data to Degree Day Model object
-							data['MeltModel'] = DdfCell(data['easting'], data['northing'], data['elevation'], data['Bw'], jdayBw, data['Shadevals'], paramDict)
-							points[line['Stake'].strip()] = data
+							data[stake]['MeltModel'] = DdfCell(data[stake]['easting'], data[stake]['northing'], data[stake]['elevation'], data[stake]['Bw'], jdayBw, data[stake]['Shadevals'], paramDict)
+							points[stake] = copy.deepcopy(data[stake])
 						pointKeys = points.keys()
 						pointKeys.sort()
 						#
@@ -642,8 +648,9 @@ for year in [2005]:
 							# Write parameters used to text file
 							paramFile = os.path.join(outDir,'Parameters.txt')
 							with open (paramFile, 'w') as fp:
-								for p in paramDict.items():
-									fp.write("%s:%2.6f\n" % p)
+								# for p in paramDict.items():
+								for p in sorted(paramDict.keys()):
+									fp.write("%s:%2.4f\n" % (p, paramDict[p]))
 						#
 						# MARKER - end of modelling. Everything after this point may be erased if the model is to be used without assessment of parameters
 						#
@@ -723,8 +730,8 @@ for year in [2005]:
 								parUsage['BsR2'].append(BsR2)
 								parUsage['BnR2'].append(BnR2)
 							#
-						print "Check {0}: latest:{1}, max:{2}".format(outputname, bsR2list[-1], max(bsR2list))
-						if test != 0: #and bsR2list[-1] == max(bsR2list):
+						# print "Check {0}: latest:{1}, max:{2}".format(outputname, bsR2list[-1],  bestBsR2)
+						if test != 0:
 							if bsR2list[-1] >= bestBsR2 or np.isnan(bestBsR2):
 								time_i = datetime.now()
 								print "\n %s latest Bs R^2:%2.3f, best Bs R^2: %2.3f at %s" %(counter, bsR2list[-1], bestBsR2, time_i)
@@ -743,8 +750,9 @@ for year in [2005]:
 								# Write parameters used to text file
 								paramFile = os.path.join(outDir,'Parameters.txt')
 								with open (paramFile, 'w') as fp:
-									for p in paramDict.items():
-										fp.write("%s:%2.6f\n" % p)
+									# for p in paramDict.items():
+									for p in sorted(paramDict.keys()):
+										fp.write("%s:%2.6f\n" % (p, paramDict[p]))
 								#
 								x = dbcomp['Elevation']
 								for d in jdatelist:
