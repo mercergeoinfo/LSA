@@ -30,6 +30,7 @@ import fnmatch
 import csv
 import struct
 import copy
+import itertools
 ## SCIENTIFIC
 #import math
 import numpy as np
@@ -473,7 +474,7 @@ test = 1
 # [2005,2006,2007,2008]
 # [2005,2006,2007,2008,2009,2010,2011,2012,2013]
 # Choose which data set is to be run.
-for year in [2005]:
+for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
 	#
 	strYear = str(year)
 	dataLoc = '../InData/' + strYear
@@ -522,9 +523,10 @@ for year in [2005]:
 	#
 	#
 	# The parameters below are fixed for this study
-	elevLapse = (2100 - 1150) # Elevation dependant lapse rate
-	sfe = 1.5 # Shading factor exponent (adjusts the shading value at each point)
-	ELA = 1500 # Equilibrium line, for firn or ice under snow
+	zRange = (2100 - 1150)
+	elevLapse = [zRange] # Elevation dependant lapse rate
+	sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
+	ELA = [1500] # Equilibrium line, for firn or ice under snow
 	#
 	# Set parameters for the melt model
 	if test == 0: # Block 2, 2009 to 2013 best parameters
@@ -604,182 +606,177 @@ for year in [2005]:
 		# Get the winter balance
 		stakeData[stakeName]['Bw'] = float(line['Bw'].strip())
 	#
-	# Parameters read into dictionary to be passed to model
 	paramDict = {}
-	paramDict['elevLapse'] = elevLapse
-	paramDict['sfe'] = sfe
-	paramDict['ELA'] = ELA
 	paramDict['refElev'] = refElev
-	for Snw in Snow:
-		paramDict['ddfSnow'] = ddfSnow[Snw]
-		for Spr in Super:
-			paramDict['ddfSi'] = ddfSi[Spr]
-			for Frn in Firn:
-				paramDict['ddfFirn'] = ddfFirn[Frn]
-				for Eci in Ice:
-					paramDict['ddfIce'] = ddfIce[Eci]
-					for Lps in Lapse:
-						paramDict['lapse'] = lapse[Lps]
-						#
-						points = {}
-						data = copy.deepcopy(stakeData)
-						stakeNames = stakeData.keys()
-						# Read stake data
-						for stake in stakeNames:
-							# Send input data to Degree Day Model object
-							data[stake]['MeltModel'] = DdfCell(data[stake]['easting'], data[stake]['northing'], data[stake]['elevation'], data[stake]['Bw'], jdayBw, data[stake]['Shadevals'], paramDict)
-							points[stake] = copy.deepcopy(data[stake])
-						pointKeys = points.keys()
-						pointKeys.sort()
-						#
-						# For each julian day in the "times" vector call the meltInst method for each point object, passing the temperature and the day number.
-						# This is what runs the model at each time step in the temperature time series file
-						for i in range(len(temps)):
-							for j in pointKeys:
-								points[j]['MeltModel'].meltInst(temps[i],times[i])
-						#
-						# Only write out results now if not running test, otherwise wait until assessed
-						if test == 0:
-							# Output model data to file
-							# Get name of mb file
-							inname,inext,inpath,innamefull = namer(SfileName)
-							outDir = makeDir(outputDir, inname)
-							meltDataOut(pointKeys, points, outDir)
-							# Write parameters used to text file
-							paramFile = os.path.join(outDir,'Parameters.txt')
-							with open (paramFile, 'w') as fp:
-								# for p in paramDict.items():
-								for p in sorted(paramDict.keys()):
-									fp.write("%s:%2.4f\n" % (p, paramDict[p]))
-						#
-						# MARKER - end of modelling. Everything after this point may be erased if the model is to be used without assessment of parameters
-						#
-						if test != 0:
-							# Create database of vectors for assessment of model output
-							dbcomp = {}
-							# Get number of modelled objects
-							pntsz = len(pointKeys)
-							# Create empty arrays for data
-							Stk_mod = np.zeros((pntsz,))
-							Stk_mod.fill(np.nan)
-							dbcomp['Stake'] = [None]*pntsz
-							dbcomp['Easting'] = np.copy(Stk_mod)
-							dbcomp['Northing'] = np.copy(Stk_mod)
-							dbcomp['Elevation'] = np.copy(Stk_mod)
-							dbcomp['Bw'] = np.copy(Stk_mod)
-							for d in jdatelist:
-								bsn = "Mod_Bs_" + str(d)
-								bnn = "Mod_Bn_" + str(d)
-								dbcomp[bsn] = np.copy(Stk_mod)
-								dbcomp[bnn] = np.copy(Stk_mod)
-							for pki in range(pntsz):
-								Stk = pointKeys[pki]
-								dbcomp['Stake'][pki] = pointKeys[pki]
-								dbcomp['Easting'][pki] = points[Stk]['easting']
-								dbcomp['Northing'][pki] = points[Stk]['northing']
-								dbcomp['Elevation'][pki] = points[Stk]['elevation']
-								dbcomp['Bw'][pki] = points[Stk]['Bw']
-								for d in jdatelist:
-									bsn = "Mod_Bs_" + str(d)
-									bnn = "Mod_Bn_" + str(d)
-									loc = points[j]['MeltModel'].jTimeSeries.index(d)
-									dbcomp[bsn][pki] = round(points[Stk]['MeltModel'].meltSumSeries[loc],3)
-									dbcomp[bnn][pki] = round(points[Stk]['MeltModel'].BnSeries[loc],3)
-							# Create lists for R-squared values
-							bsR2list = []
-							bnR2list = []
-							# Loop through model results (in vectors)
-							for d in jdatelist:
-								obsBs = []
-								obsBn = []
-								for stk in dbcomp['Stake']:
-									try:
-										ind = np.where(trudb[str(d)]['Data']['Stake'] == stk)
-										bs = trudb[str(d)]['Data']['Bs'][ind][0]
-										bn = trudb[str(d)]['Data']['Bn'][ind][0]
-									except:
-										bs = np.nan
-										bn = np.nan
-									obsBs.append(bs)
-									obsBn.append(bn)
-								bsn = "Mod_Bs_" + str(d)
-								bnn = "Mod_Bn_" + str(d)
-								# Calculate 'R-squared'
-								# Bs
-								modBs = dbcomp[bsn]
-								obsBsmean = nanmean(obsBs)
-								obsBsMinModBs = obsBs - modBs
-								obsBsMinMean = obsBs - obsBsmean
-								BsR2 = 1 - ((np.nansum(obsBsMinModBs**2)) / (np.nansum(obsBsMinMean**2)))
-								paramDict[(bsn+'_R2')] = BsR2
-								bsR2list.append(BsR2)
-								# Bn
-								modBn = dbcomp[bnn]
-								obsBnmean = nanmean(obsBn)
-								obsBnMinModBn = obsBn - modBn
-								obsBnMinMean = obsBn - obsBnmean
-								BnR2 = 1 - ((np.nansum(obsBnMinModBn**2)) / (np.nansum(obsBnMinMean**2)))
-								paramDict[(bnn+'_R2')] = BnR2
-								bnR2list.append(BnR2)
-								# Add parameters used to results storage
-								parUsage['ddfSnow'].append(paramDict['ddfSnow'])
-								parUsage['ddfSi'].append(paramDict['ddfSi'])
-								parUsage['ddfFirn'].append(paramDict['ddfFirn'])
-								parUsage['ddfIce'].append(paramDict['ddfIce'])
-								parUsage['lapse'].append(paramDict['lapse'])
-								parUsage['BsR2'].append(BsR2)
-								parUsage['BnR2'].append(BnR2)
-							#
-						# print "Check {0}: latest:{1}, max:{2}".format(outputname, bsR2list[-1],  bestBsR2)
-						if test != 0:
-							if bsR2list[-1] >= bestBsR2 or np.isnan(bestBsR2):
-								time_i = datetime.now()
-								print "\n %s latest Bs R^2:%2.3f, best Bs R^2: %2.3f at %s" %(counter, bsR2list[-1], bestBsR2, time_i)
-								bestBsR2 = bsR2list[-1]
-								print "new best Bs R2: %2.3f" % bsR2list[-1]
-								if (max(bnR2list) > bestBnR2)or np.isnan(bestBnR2):
-									bestBnR2 = max(bnR2list)
-									print "new best Bn R2: %2.3f" % bnR2list[-1]
-								#
-								# Output model data to file
-								# Get name of mb file
-								# inname,inext,inpath,innamefull = namer(SfileName)
-								flnm = str(counter)
-								outDir = makeDir(outputDir, flnm)
-								meltDataOut(pointKeys, points, outDir)
-								# Write parameters used to text file
-								paramFile = os.path.join(outDir,'Parameters.txt')
-								with open (paramFile, 'w') as fp:
-									# for p in paramDict.items():
-									for p in sorted(paramDict.keys()):
-										fp.write("%s:%2.6f\n" % (p, paramDict[p]))
-								#
-								x = dbcomp['Elevation']
-								for d in jdatelist:
-									obsBs = []
-									obsBn = []
-									for stk in dbcomp['Stake']:
-										try:
-											ind = np.where(trudb[str(d)]['Data']['Stake'] == stk)
-											bs = trudb[str(d)]['Data']['Bs'][ind][0]
-											bn = trudb[str(d)]['Data']['Bn'][ind][0]
-										except:
-											bs = np.nan
-											bn = np.nan
-										obsBs.append(bs)
-										obsBn.append(bn)
-									bsn = "Mod_Bs_" + str(d)
-									bnn = "Mod_Bn_" + str(d)
-									modBs = dbcomp[bsn]
-									modBn = dbcomp[bnn]
-									bsDiff = obsBs - modBs
-									bnDiff = obsBn - modBn
-									pltnmBs = outputname + str(d) + '_Bs_diff_'
-									pltnmBn = outputname + str(d) + '_Bn_diff_'
-									plotDifElev(pltnmBs,outDir,x,bsDiff,'r')
-									plotDifElev(pltnmBn,outDir,x,bnDiff,'k')
-						pltot = pltot -1
-						counter = counter +1
+	paramDict['elevLapse'] = elevLapse[-1]
+	paramDict['sfe'] = sfe[-1]
+	paramDict['ELA'] = ELA[-1]
+	for p1, p2, p3, p4, p5 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse):
+		paramDict['ddfSnow'] = p1
+		paramDict['ddfSi'] = p2
+		paramDict['ddfFirn'] = p3
+		paramDict['ddfIce'] = p4
+		paramDict['lapse'] = p5
+		#
+		points = {}
+		data = copy.deepcopy(stakeData)
+		stakeNames = stakeData.keys()
+		# Read stake data
+		for stake in stakeNames:
+			# Send input data to Degree Day Model object
+			data[stake]['MeltModel'] = DdfCell(data[stake]['easting'], data[stake]['northing'], data[stake]['elevation'], data[stake]['Bw'], jdayBw, data[stake]['Shadevals'], paramDict)
+			points[stake] = copy.deepcopy(data[stake])
+		pointKeys = points.keys()
+		pointKeys.sort()
+		#
+		# For each julian day in the "times" vector call the meltInst method for each point object, passing the temperature and the day number.
+		# This is what runs the model at each time step in the temperature time series file
+		for i in range(len(temps)):
+			for j in pointKeys:
+				points[j]['MeltModel'].meltInst(temps[i],times[i])
+		#
+		# Only write out results now if not running test, otherwise wait until assessed
+		if test == 0:
+			# Output model data to file
+			# Get name of mb file
+			inname,inext,inpath,innamefull = namer(SfileName)
+			outDir = makeDir(outputDir, inname)
+			meltDataOut(pointKeys, points, outDir)
+			# Write parameters used to text file
+			paramFile = os.path.join(outDir,'Parameters.txt')
+			with open (paramFile, 'w') as fp:
+				# for p in paramDict.items():
+				for p in sorted(paramDict.keys()):
+					fp.write("%s:%2.4f\n" % (p, paramDict[p]))
+		#
+		# MARKER - end of modelling. Everything after this point may be erased if the model is to be used without assessment of parameters
+		#
+		if test != 0:
+			# Create database of vectors for assessment of model output
+			dbcomp = {}
+			# Get number of modelled objects
+			pntsz = len(pointKeys)
+			# Create empty arrays for data
+			Stk_mod = np.zeros((pntsz,))
+			Stk_mod.fill(np.nan)
+			dbcomp['Stake'] = [None]*pntsz
+			dbcomp['Easting'] = np.copy(Stk_mod)
+			dbcomp['Northing'] = np.copy(Stk_mod)
+			dbcomp['Elevation'] = np.copy(Stk_mod)
+			dbcomp['Bw'] = np.copy(Stk_mod)
+			for d in jdatelist:
+				bsn = "Mod_Bs_" + str(d)
+				bnn = "Mod_Bn_" + str(d)
+				dbcomp[bsn] = np.copy(Stk_mod)
+				dbcomp[bnn] = np.copy(Stk_mod)
+			for pki in range(pntsz):
+				Stk = pointKeys[pki]
+				dbcomp['Stake'][pki] = pointKeys[pki]
+				dbcomp['Easting'][pki] = points[Stk]['easting']
+				dbcomp['Northing'][pki] = points[Stk]['northing']
+				dbcomp['Elevation'][pki] = points[Stk]['elevation']
+				dbcomp['Bw'][pki] = points[Stk]['Bw']
+				for d in jdatelist:
+					bsn = "Mod_Bs_" + str(d)
+					bnn = "Mod_Bn_" + str(d)
+					loc = points[j]['MeltModel'].jTimeSeries.index(d)
+					dbcomp[bsn][pki] = round(points[Stk]['MeltModel'].meltSumSeries[loc],3)
+					dbcomp[bnn][pki] = round(points[Stk]['MeltModel'].BnSeries[loc],3)
+			# Create lists for R-squared values
+			bsR2list = []
+			bnR2list = []
+			# Loop through model results (in vectors)
+			for d in jdatelist:
+				obsBs = []
+				obsBn = []
+				for stk in dbcomp['Stake']:
+					try:
+						ind = np.where(trudb[str(d)]['Data']['Stake'] == stk)
+						bs = trudb[str(d)]['Data']['Bs'][ind][0]
+						bn = trudb[str(d)]['Data']['Bn'][ind][0]
+					except:
+						bs = np.nan
+						bn = np.nan
+					obsBs.append(bs)
+					obsBn.append(bn)
+				bsn = "Mod_Bs_" + str(d)
+				bnn = "Mod_Bn_" + str(d)
+				# Calculate 'R-squared'
+				# Bs
+				modBs = dbcomp[bsn]
+				obsBsmean = nanmean(obsBs)
+				obsBsMinModBs = obsBs - modBs
+				obsBsMinMean = obsBs - obsBsmean
+				BsR2 = 1 - ((np.nansum(obsBsMinModBs**2)) / (np.nansum(obsBsMinMean**2)))
+				paramDict[(bsn+'_R2')] = BsR2
+				bsR2list.append(BsR2)
+				# Bn
+				modBn = dbcomp[bnn]
+				obsBnmean = nanmean(obsBn)
+				obsBnMinModBn = obsBn - modBn
+				obsBnMinMean = obsBn - obsBnmean
+				BnR2 = 1 - ((np.nansum(obsBnMinModBn**2)) / (np.nansum(obsBnMinMean**2)))
+				paramDict[(bnn+'_R2')] = BnR2
+				bnR2list.append(BnR2)
+				# Add parameters used to results storage
+				parUsage['ddfSnow'].append(paramDict['ddfSnow'])
+				parUsage['ddfSi'].append(paramDict['ddfSi'])
+				parUsage['ddfFirn'].append(paramDict['ddfFirn'])
+				parUsage['ddfIce'].append(paramDict['ddfIce'])
+				parUsage['lapse'].append(paramDict['lapse'])
+				parUsage['BsR2'].append(BsR2)
+				parUsage['BnR2'].append(BnR2)
+			#
+		# print "Check {0}: latest:{1}, max:{2}".format(outputname, bsR2list[-1],  bestBsR2)
+		if test != 0:
+			if bsR2list[-1] >= bestBsR2 or np.isnan(bestBsR2):
+				time_i = datetime.now()
+				print "\n %s latest Bs R^2:%2.3f, best Bs R^2: %2.3f at %s" %(counter, bsR2list[-1], bestBsR2, time_i)
+				bestBsR2 = bsR2list[-1]
+				print "new best Bs R2: %2.3f" % bsR2list[-1]
+				if (max(bnR2list) > bestBnR2)or np.isnan(bestBnR2):
+					bestBnR2 = max(bnR2list)
+					print "new best Bn R2: %2.3f" % bnR2list[-1]
+				#
+				# Output model data to file
+				# Get name of mb file
+				# inname,inext,inpath,innamefull = namer(SfileName)
+				flnm = str(counter)
+				outDir = makeDir(outputDir, flnm)
+				meltDataOut(pointKeys, points, outDir)
+				# Write parameters used to text file
+				paramFile = os.path.join(outDir,'Parameters.txt')
+				with open (paramFile, 'w') as fp:
+					# for p in paramDict.items():
+					for p in sorted(paramDict.keys()):
+						fp.write("%s:%2.6f\n" % (p, paramDict[p]))
+				#
+				x = dbcomp['Elevation']
+				for d in jdatelist:
+					obsBs = []
+					obsBn = []
+					for stk in dbcomp['Stake']:
+						try:
+							ind = np.where(trudb[str(d)]['Data']['Stake'] == stk)
+							bs = trudb[str(d)]['Data']['Bs'][ind][0]
+							bn = trudb[str(d)]['Data']['Bn'][ind][0]
+						except:
+							bs = np.nan
+							bn = np.nan
+						obsBs.append(bs)
+						obsBn.append(bn)
+					bsn = "Mod_Bs_" + str(d)
+					bnn = "Mod_Bn_" + str(d)
+					modBs = dbcomp[bsn]
+					modBn = dbcomp[bnn]
+					bsDiff = obsBs - modBs
+					bnDiff = obsBn - modBn
+					pltnmBs = outputname + str(d) + '_Bs_diff_'
+					pltnmBn = outputname + str(d) + '_Bn_diff_'
+					plotDifElev(pltnmBs,outDir,x,bsDiff,'r')
+					plotDifElev(pltnmBn,outDir,x,bnDiff,'k')
+		pltot = pltot -1
+		counter = counter +1
 	# For test runs, write out csv list of R squared for parameter values used
 	if test != 0:
 		paramFile = os.path.join(outputDir,'UsedParameters.csv')
