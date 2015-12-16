@@ -17,9 +17,9 @@ The shading is a hillshade based adjusted summing the "daylight" hours shade at 
 
 ## Files
 
-### ddf_model.py
+### ModifiedDegreeDay.py
 
-The main model file
+The main model. Requires spatialfiles.py and standard.py from my other repo
 
 ### ParameterAnalysis.py
 
@@ -31,8 +31,10 @@ Creates a geotiff file containing multiple layers, each layer the shade cast on 
 
 ### Other files
 
+- ddf_model.py
 - DiffTrigger.py
 - KrigTrigger.py
 - README.md
 - smhiPrecipPlot.py
 - SumTrigger.py
+

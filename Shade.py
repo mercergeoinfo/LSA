@@ -8,7 +8,7 @@ __maintainer__ = 'Andrew Mercer'
 __version__ = '1.0'
 __date__ = '25/04/2014'
 #
-# Created: 25/01/2015
+# Created: 25/01/2014
 # Version: 1.0
 # Andrew Mercer
 # Calculate Sun's position from Latitude, Longitude and Time/Date then calculate shade on Storglaciären
@@ -113,8 +113,8 @@ Clock = []
 JDay = []
 Azim = []
 Alti = []
-#days = range(1,366)
-days = range(100,260)
+days = range(1,366)
+#days = range(100,260)
 hours = range(6,19)
 #hours = range(6,9)
 # Loop through days of year and daylight hours (06.00 to 18.00)
@@ -137,17 +137,17 @@ for jday in days:
         Alti.append(math.degrees(sun.alt))
 #
 # Get DEM of entire region
-RegDEM = '/Users/andrew/Documents/Work/9_Tarfala/TRSGeoData/StorglacData/topography/1999_KebDEM.tiff'
+RegDEM = '../InData/DEM/1999_KebDEM.tiff'
 
 # Get DEM of Storglaciären
-SG = '/Users/andrew/Documents/Work/9_Tarfala/TRSGeoData/StorglacData/SG_DEM_2010/SG_DEM_2010.tif'
+SG = '../InData/DEM/SG_DEM_2010.tif'
 SGdata, SGmeta, SGmetadata = rasterImport(SG)
 ul = SGmeta['corners']['ul']
 lr = SGmeta['corners']['lr']
-SGmask = '/Users/andrew/Documents/Work/9_Tarfala/TRSGeoData/StorglacData/SG_DEM_2010/SG_DEM_2010_mask.tif'
+SGmask = '../InData/DEM/SG_DEM_2010_mask.tif'
 #
 # Output folder
-outDir = '/Users/andrew/Dropbox/15_PhD/Write/8/Edit/MeltModel/output/Shades'
+outDir = '../InData/	Shades'
 # Loop through days
 for day in days:
     DailyName = str(day)+'.tif'
