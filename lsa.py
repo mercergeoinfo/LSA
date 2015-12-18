@@ -356,6 +356,7 @@ time_one = time_zero
 # Get shading data
 # Location of file containing a multiband raster, each band represents the shading on one day. 1 = no shade, 0 = really quite dark
 shadefile = '../InData/Shades/SG_shade.tif'
+# shadefile = '../InData/Shades/Reduced/SG_shade.tif'
 # Read the shade factor raster in to memory
 raster, transf, bandcount = getShadeFile(shadefile)
 #
@@ -363,94 +364,95 @@ raster, transf, bandcount = getShadeFile(shadefile)
 # Set test to 2 to run2009 to 2008 best parameters
 # Set test to 3 (or higher) to run 2005 to 2013 best parameters
 test = 3
-year = 2013
-strYear = str(year)
-dataLoc = '../InData/' + strYear
-# Temperature data. Following two lines are example of input format:
-# Date,Temp
-# 2010-01-25,-8.3
-weather = 'weather' + strYear + '.csv'
-TfileName = os.path.join(dataLoc, weather)
-# Read Temperature data from csv file and convert dates to julian days. Date format '%Y-%m-%d' is SMHI's
-TinFile = open(TfileName,'rb')
-dates = []
-times = []
-temps = []
-for line in csv.DictReader(TinFile, delimiter=','):
-	dates.append(line['Date'].strip())
-	date = datetime.strptime(line['Date'].strip(),'%Y-%m-%d')
-	jdate = datetime.strftime(date,'%j')
-	times.append(int(jdate))
-	temps.append(float(line['Temp'].strip()))
-TinFile.close()
-# Stake data. Following two lines are example of input format:
-# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
-# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-stakeFileName = 'StakeData' + strYear + '.csv'
-SfileName =os.path.join(dataLoc, stakeFileName)
-# Get settings for model: AWS elevation, date of snow probing, dates for model export, first date in shading file (could start this at 1 by default but
-# shading file may be created for limited range of dates to reduce file size)
-refElev, jdayBw, jdatelist, startday = getSettings(dataLoc, times[-1])
-print "For year %s following settings used: " %(strYear)
-print "refElev set to %s" %(refElev)
-print "jdayBw set to %s" %(jdayBw)
-#
-# Set parameters for the melt model
-if test == 1: # Block 1, 2005 to 2008 best parameters
-	ddfSnow=[0.0040]
-	ddfSi=[0.0048]
-	ddfFirn=[0.0050]
-	ddfIce=[0.0050]
-	lapse=[0.0064]
-	rangeZ = (2100 - 1150)
-	elevLapse =[rangeZ]# Elevation dependant lapse rate
-	sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
-	ELA = [1500] # Equilibrium line, for firn or ice under snow
-elif test == 2: # Block 2, 2009 to 2013 best parameters
-	ddfSnow = [0.0038]
-	ddfSi = [0.0051]
-	ddfFirn = [0.0050]
-	ddfIce = [0.0054]
-	lapse = [0.0055]
-	rangeZ = (2100 - 1150)
-	elevLapse = [rangeZ] # Elevation dependant lapse rate
-	sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
-	ELA = [1500] # Equilibrium line, for firn or ice under snow
-elif test == 3:
-	ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048]
-	ddfSi = [0.0045,0.0047,0.0049,0.0051]
-	ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
-	ddfIce = [0.0043,0.0045,0.0047,0.0049,0.0051,0.0053,0.0055,0.0057]
-	lapse = [0.0042,0.0044,0.0046,0.0048,0.0050,0.0055,0.0057,0.0059,0.0061,0.0063,0.0065,0.0068,0.0070,0.0072,0.0074,0.0076]
-	rangeZ = (2100 - 1150)
-	elevLapse = [rangeZ] # Elevation dependant lapse rate
-	sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
-	ELA = [1500] # Equilibrium line, for firn or ice under snow
-else: #All, 2005 to 2013 best parameters
-	ddfSnow = [0.0039]
-	ddfSi = [0.0049]
-	ddfFirn = [0.0050]
-	ddfIce = [0.0052]
-	lapse = [0.0059]
-	rangeZ = (2100 - 1150)
-	elevLapse = [rangeZ] # Elevation dependant lapse rate
-	sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
-	ELA = [1500] # Equilibrium line, for firn or ice under snow
-counter = 0
-bestBsR2 = -9999
-writeTest = 0
-for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
-	paramDict = {}
-	paramDict['ddfSnow'] = it1
-	paramDict['ddfSi'] =it2
-	paramDict['ddfFirn'] = it3
-	paramDict['ddfIce'] = it4
-	paramDict['lapse'] = it5
-	paramDict['elevLapse'] = it6
-	paramDict['sfe'] = it7
-	paramDict['ELA'] = it8
-	paramDict['refElev'] = refElev
+for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
+#year = 2011
+	strYear = str(year)
+	dataLoc = '../InData/' + strYear
+	# Temperature data. Following two lines are example of input format:
+	# Date,Temp
+	# 2010-01-25,-8.3
+	weather = 'weather' + strYear + '.csv'
+	TfileName = os.path.join(dataLoc, weather)
+	# Read Temperature data from csv file and convert dates to julian days. Date format '%Y-%m-%d' is SMHI's
+	TinFile = open(TfileName,'rb')
+	dates = []
+	times = []
+	temps = []
+	for line in csv.DictReader(TinFile, delimiter=','):
+		dates.append(line['Date'].strip())
+		date = datetime.strptime(line['Date'].strip(),'%Y-%m-%d')
+		jdate = datetime.strftime(date,'%j')
+		times.append(int(jdate))
+		temps.append(float(line['Temp'].strip()))
+	TinFile.close()
+	# Stake data. Following two lines are example of input format:
+	# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
+	# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
+	stakeFileName = 'StakeData' + strYear + '.csv'
+	SfileName =os.path.join(dataLoc, stakeFileName)
+	# Get settings for model: AWS elevation, date of snow probing, dates for model export, first date in shading file (could start this at 1 by default but
+	# shading file may be created for limited range of dates to reduce file size)
+	refElev, jdayBw, jdatelist, startday = getSettings(dataLoc, times[-1])
+	print "For year %s following settings used: " %(strYear)
+	print "refElev set to %s" %(refElev)
+	print "jdayBw set to %s" %(jdayBw)
 	#
+	# Set parameters for the melt model
+	if test == 1: # Block 1, 2005 to 2008 best parameters
+		ddfSnow=[0.0040]
+		ddfSi=[0.0048]
+		ddfFirn=[0.0050]
+		ddfIce=[0.0050]
+		lapse=[0.0064]
+		rangeZ = (2100 - 1150)
+		elevLapse =[rangeZ]# Elevation dependant lapse rate
+		sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
+		ELA = [1500] # Equilibrium line, for firn or ice under snow
+	elif test == 2: # Block 2, 2009 to 2013 best parameters
+		ddfSnow = [0.0038]
+		ddfSi = [0.0051]
+		ddfFirn = [0.0050]
+		ddfIce = [0.0054]
+		lapse = [0.0055]
+		rangeZ = (2100 - 1150)
+		elevLapse = [rangeZ] # Elevation dependant lapse rate
+		sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
+		ELA = [1500] # Equilibrium line, for firn or ice under snow
+	elif test == 3:
+		ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048]
+		ddfSi = [0.0045,0.0047,0.0049,0.0051]
+		ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
+		ddfIce = [0.0043,0.0045,0.0047,0.0049,0.0051,0.0053,0.0055,0.0057]
+		lapse = [0.0042,0.0044,0.0046,0.0048,0.0050,0.0055,0.0057,0.0059,0.0061,0.0063,0.0065,0.0068,0.0070,0.0072,0.0074,0.0076]
+		rangeZ = (2100 - 1150)
+		elevLapse = [rangeZ] # Elevation dependant lapse rate
+		sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
+		ELA = [1500] # Equilibrium line, for firn or ice under snow
+	else: #All, 2005 to 2013 best parameters
+		ddfSnow = [0.0039]
+		ddfSi = [0.0049]
+		ddfFirn = [0.0050]
+		ddfIce = [0.0052]
+		lapse = [0.0059]
+		rangeZ = (2100 - 1150)
+		elevLapse = [rangeZ] # Elevation dependant lapse rate
+		sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
+		ELA = [1500] # Equilibrium line, for firn or ice under snow
+	counter = 0
+	bestBsR2 = -9999
+	writeTest = 0
+	# for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
+	# 	paramDict = {}
+	# 	paramDict['ddfSnow'] = it1
+	# 	paramDict['ddfSi'] =it2
+	# 	paramDict['ddfFirn'] = it3
+	# 	paramDict['ddfIce'] = it4
+	# 	paramDict['lapse'] = it5
+	# 	paramDict['elevLapse'] = it6
+	# 	paramDict['sfe'] = it7
+	# 	paramDict['ELA'] = it8
+	# 	paramDict['refElev'] = refElev
+		#
 	# Directory for output
 	outputDir = os.path.join('../Output/', strYear)
 	if not os.path.exists(outputDir):
@@ -512,90 +514,70 @@ for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, 
 			stakeData[stakeName]['Org_Bn'] = float(line['Bn'].strip())
 		except:
 			pass
-	#
-	# 'points' stores each survey point and the model results, all inherited from 'data'
-	# 'data' is a copy of the original 'stakeData'
-	points = {}
-	data = copy.deepcopy(stakeData)
-	stakeNames = stakeData.keys()
-	stakeNames.sort()
-	data['DataSets'] = {}
-	for stake in stakeNames:
-		# For ordered headers/keys
-		data[stake]['Headers'] = ['MeltModel', 'Shadevals', 'Easting', 'Northing', 'Elevation', 'Org_Bw']
-		if 'Org_Bn' in data[stake].keys():
-			data[stake]['Headers'].append('Org_Bn')
-		# Send input data to Degree Day Model object
-		data[stake]['MeltModel'] = DdfCell(data[stake]['Easting'], data[stake]['Northing'], data[stake]['Elevation'], data[stake]['Org_Bw'], jdayBw, data[stake]['Shadevals'], paramDict)
-		# For each julian day in the "times" vector call the meltInst method for each point object, passing the temperature and the day number.
-		# This is what runs the model at each time step in the temperature time series file
-		for i in range(len(temps)):
-			data[stake]['MeltModel'].meltInst(temps[i],times[i])
-		for day in jdatelist:
-			# Fetch modelled melt and net balance for each julian day specific in settings and create new entry for each
-			loc = data[stake]['MeltModel'].jTimeSeries.index(day)
-			data[stake]['Mod_Bs_' + str(day)] =  round(data[stake]['MeltModel'].meltSumSeries[loc],3)
-			data[stake]['Mod_Bn_' + str(day)] =  round(data[stake]['MeltModel'].BnSeries[loc],3)
-			data[stake]['Headers'].append('Mod_Bs_' + str(day))
-			data[stake]['Headers'].append('Mod_Bn_' + str(day))
-			# Fetch any truthing data available
-			if 'trudbKeys' in locals():
-				if str(day) in trudbKeys:
-					loc = np.where(trudb[str(day)]['Stake']==stake)[0][0]
-					data[stake]['Org_Bs_' + str(day)] = round(trudb[str(day)]['Bs'][loc],3)
-					data[stake]['Org_Bn_' + str(day)] = round(trudb[str(day)]['Bn'][loc],3)
-					data[stake]['Mod_Bw_' + str(day)] = round((data[stake]['Org_Bn_' + str(day)] +data[stake]['Mod_Bs_' + str(day)]), 3)
-					data[stake]['Headers'].insert(-2, 'Org_Bs_' + str(day))
-					data[stake]['Headers'].insert(-2, 'Org_Bn_' + str(day))
-					data[stake]['Headers'].insert(-2, 'Mod_Bw_' + str(day))
-					# Add values to lists for calculating R2 later
-					if 'Mod_Bs_' + str(day) not in data['DataSets'].keys():
-						data['DataSets']['Mod_Bs_' + str(day)] = []
-					data['DataSets']['Mod_Bs_' + str(day)].append(data[stake]['Mod_Bs_' + str(day)])
-					if 'Org_Bs_' + str(day) not in data['DataSets'].keys():
-						data['DataSets']['Org_Bs_' + str(day)] = []
-					data['DataSets']['Org_Bs_' + str(day)].append(data[stake]['Org_Bs_' + str(day)])
-		dataKeys = data.keys()
-		dataKeys.sort()
-	#
-	if len(data['DataSets']) > 0:
-		report = copy.deepcopy(paramDict)
-		setKeys = data['DataSets'].keys()
-		# Order all Mod first, then all Org
-		setKeys.sort()
-		start = 0
-		end = len(setKeys)
-		middle = end/2
-		i = start
-		while i < end/2:
-			# Calculate R2
-			modBs = np.array(data['DataSets'][setKeys[i]])
-			obsBs = np.array(data['DataSets'][setKeys[middle]])
-			modBsmean = nanmean(modBs)
-			obsBsmean = nanmean(obsBs)
-			obsBsMinModBs = obsBs - modBs
-			obsBsMinMean = obsBs - obsBsmean
-			BsR2 = 1 - ((np.nansum(obsBsMinModBs**2)) / (np.nansum(obsBsMinMean**2)))
-			report[(setKeys[i]+'_R2')] = BsR2
-			if i == 1:
-				if BsR2 > bestBsR2:
-					bestBsR2 = BsR2
-					writeTest = 1
-			i = i+1
-			middle = middle+1
-
-	if writeTest == 1:
-		# Output model data to file
-		flnm = str(counter)
-		outDir = makeDir(outputDir, flnm)
-		meltDataWrite(data, outDir)
-		# 	Write report to text file
-		reportWrite(report, outDir)
-		# 	Plot model results
-		x = []
+	for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
+		paramDict = {}
+		paramDict['ddfSnow'] = it1
+		paramDict['ddfSi'] =it2
+		paramDict['ddfFirn'] = it3
+		paramDict['ddfIce'] = it4
+		paramDict['lapse'] = it5
+		paramDict['elevLapse'] = it6
+		paramDict['sfe'] = it7
+		paramDict['ELA'] = it8
+		paramDict['refElev'] = refElev
+		#
+		# 'points' stores each survey point and the model results, all inherited from 'data'
+		# 'data' is a copy of the original 'stakeData'
+		points = {}
+		data = copy.deepcopy(stakeData)
+		stakeNames = stakeData.keys()
+		stakeNames.sort()
+		data['DataSets'] = {}
 		for stake in stakeNames:
-			x.append(data[stake]['Elevation'])
+			# For ordered headers/keys
+			data[stake]['Headers'] = ['MeltModel', 'Shadevals', 'Easting', 'Northing', 'Elevation', 'Org_Bw']
+			if 'Org_Bn' in data[stake].keys():
+				data[stake]['Headers'].append('Org_Bn')
+			# Send input data to Degree Day Model object
+			data[stake]['MeltModel'] = DdfCell(data[stake]['Easting'], data[stake]['Northing'], data[stake]['Elevation'], data[stake]['Org_Bw'], jdayBw, data[stake]['Shadevals'], paramDict)
+			# For each julian day in the "times" vector call the meltInst method for each point object, passing the temperature and the day number.
+			# This is what runs the model at each time step in the temperature time series file
+			for i in range(len(temps)):
+				data[stake]['MeltModel'].meltInst(temps[i],times[i])
+			for day in jdatelist:
+				# Fetch modelled melt and net balance for each julian day specific in settings and create new entry for each
+				loc = data[stake]['MeltModel'].jTimeSeries.index(day)
+				data[stake]['Mod_Bs_' + str(day)] =  round(data[stake]['MeltModel'].meltSumSeries[loc],3)
+				data[stake]['Mod_Bn_' + str(day)] =  round(data[stake]['MeltModel'].BnSeries[loc],3)
+				data[stake]['Headers'].append('Mod_Bs_' + str(day))
+				data[stake]['Headers'].append('Mod_Bn_' + str(day))
+				# Fetch any truthing data available
+				if 'trudbKeys' in locals():
+					if str(day) in trudbKeys:
+						try:
+							loc = np.where(trudb[str(day)]['Stake']==stake)[0][0]
+							data[stake]['Org_Bs_' + str(day)] = round(trudb[str(day)]['Bs'][loc],3)
+							data[stake]['Org_Bn_' + str(day)] = round(trudb[str(day)]['Bn'][loc],3)
+							data[stake]['Mod_Bw_' + str(day)] = round((data[stake]['Org_Bn_' + str(day)] +data[stake]['Mod_Bs_' + str(day)]), 3)
+						except:
+							data[stake]['Org_Bs_' + str(day)] = np.nan
+							data[stake]['Org_Bn_' + str(day)] = np.nan
+							data[stake]['Mod_Bw_' + str(day)] = np.nan
+						data[stake]['Headers'].insert(-2, 'Org_Bs_' + str(day))
+						data[stake]['Headers'].insert(-2, 'Org_Bn_' + str(day))
+						data[stake]['Headers'].insert(-2, 'Mod_Bw_' + str(day))
+						# Add values to lists for calculating R2 later
+						if 'Mod_Bs_' + str(day) not in data['DataSets'].keys():
+							data['DataSets']['Mod_Bs_' + str(day)] = []
+						data['DataSets']['Mod_Bs_' + str(day)].append(data[stake]['Mod_Bs_' + str(day)])
+						if 'Org_Bs_' + str(day) not in data['DataSets'].keys():
+							data['DataSets']['Org_Bs_' + str(day)] = []
+						data['DataSets']['Org_Bs_' + str(day)].append(data[stake]['Org_Bs_' + str(day)])
+			dataKeys = data.keys()
+			dataKeys.sort()
+		#
 		if len(data['DataSets']) > 0:
+			report = copy.deepcopy(paramDict)
 			setKeys = data['DataSets'].keys()
 			# Order all Mod first, then all Org
 			setKeys.sort()
@@ -604,12 +586,49 @@ for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, 
 			middle = end/2
 			i = start
 			while i < end/2:
+				# Calculate R2
 				modBs = np.array(data['DataSets'][setKeys[i]])
 				obsBs = np.array(data['DataSets'][setKeys[middle]])
-				bsDiff = obsBs - modBs
-				pltnmBs = outputname + setKeys[i] + '_measured'
-				plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r')
+				modBsmean = nanmean(modBs)
+				obsBsmean = nanmean(obsBs)
+				obsBsMinModBs = obsBs - modBs
+				obsBsMinMean = obsBs - obsBsmean
+				BsR2 = 1 - ((np.nansum(obsBsMinModBs**2)) / (np.nansum(obsBsMinMean**2)))
+				report[(setKeys[i]+'_R2')] = BsR2
+				if i == 0:
+					if BsR2 > bestBsR2:
+						bestBsR2 = BsR2
+						writeTest = 1
 				i = i+1
 				middle = middle+1
-	writeTest = 0
-	counter = counter+1
+
+		if writeTest == 1:
+			# Output model data to file
+			flnm = str(counter)
+			outDir = makeDir(outputDir, flnm)
+			meltDataWrite(data, outDir)
+			# 	Write report to text file
+			reportWrite(report, outDir)
+			# 	Plot model results
+			x = []
+			for stake in stakeNames:
+				x.append(data[stake]['Elevation'])
+			if len(data['DataSets']) > 0:
+				setKeys = data['DataSets'].keys()
+				# Order all Mod first, then all Org
+				setKeys.sort()
+				start = 0
+				end = len(setKeys)
+				middle = end/2
+				i = start
+				while i < end/2:
+					modBs = np.array(data['DataSets'][setKeys[i]])
+					obsBs = np.array(data['DataSets'][setKeys[middle]])
+					bsDiff = obsBs - modBs
+					pltnmBs = outputname + setKeys[i] + '_measured'
+					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r')
+					i = i+1
+					middle = middle+1
+		writeTest = 0
+		print "Run: ", counter
+		counter = counter+1
