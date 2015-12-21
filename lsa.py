@@ -364,7 +364,7 @@ raster, transf, bandcount = getShadeFile(shadefile)
 # Set test to 2 to run2009 to 2008 best parameters
 # Set test to 3 (or higher) to run 2005 to 2013 best parameters
 test = 3
-for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
+for year in [2007]:
 #year = 2011
 	strYear = str(year)
 	dataLoc = '../InData/' + strYear
@@ -440,19 +440,8 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
 		ELA = [1500] # Equilibrium line, for firn or ice under snow
 	counter = 0
 	bestBsR2 = -9999
+	BsR2 = np.nan
 	writeTest = 0
-	# for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
-	# 	paramDict = {}
-	# 	paramDict['ddfSnow'] = it1
-	# 	paramDict['ddfSi'] =it2
-	# 	paramDict['ddfFirn'] = it3
-	# 	paramDict['ddfIce'] = it4
-	# 	paramDict['lapse'] = it5
-	# 	paramDict['elevLapse'] = it6
-	# 	paramDict['sfe'] = it7
-	# 	paramDict['ELA'] = it8
-	# 	paramDict['refElev'] = refElev
-		#
 	# Directory for output
 	outputDir = os.path.join('../Output/', strYear)
 	if not os.path.exists(outputDir):
@@ -596,12 +585,16 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
 				BsR2 = 1 - ((np.nansum(obsBsMinModBs**2)) / (np.nansum(obsBsMinMean**2)))
 				report[(setKeys[i]+'_R2')] = BsR2
 				if i == 0:
-					if BsR2 > bestBsR2:
+					if BsR2 >= bestBsR2:
 						bestBsR2 = BsR2
 						writeTest = 1
+						print "\nRun: {0} ".format(counter)
+						reportKeys = report.keys()
+						reportKeys.sort()
+						for k in reportKeys:
+							print k, report[k]
 				i = i+1
 				middle = middle+1
-
 		if writeTest == 1:
 			# Output model data to file
 			flnm = str(counter)
@@ -630,5 +623,4 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2012,2013]:
 					i = i+1
 					middle = middle+1
 		writeTest = 0
-		print "Run: ", counter
 		counter = counter+1
