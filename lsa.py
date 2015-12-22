@@ -319,6 +319,28 @@ def plotDifElev(outputname,outDir, title, x, y, colour):
 	plt.close()
 	return 0
 #
+def scoring(scores, paramDict, BsR2):
+	'''Set scores for each parameter when iterating over multiple possible combinations'''
+	parameterNames =  ['ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
+	for p in parameterNames:
+		value = paramDict[p]
+		if value not in scores[p].keys():
+			scores[p][value] = BsR2
+		elif value in scores[p].keys():
+			scores[p][value] = scores[p][value] + BsR2
+		else:
+			print 'Scoring error'
+	return scores
+#
+def scoreWrite(scores, outDir):
+	'''Write Scores to csv at end of run'''
+	for keyName in scores.keys():
+		scoreFileName = keyName + '.csv'
+		scoreFile = os.path.join(outDir, scoreFileName)
+		with open (scoreFile, 'w') as fp:
+			for p in sorted(scores[keyName].keys()):
+				fp.write("%2.4f,%2.4f\n" % (p, scores[keyName][p]))
+	return 0
 #
 ################################### MAIN ###################################
 #
@@ -361,10 +383,11 @@ shadefile = '../InData/Shades/SG_shade.tif'
 raster, transf, bandcount = getShadeFile(shadefile)
 #
 # Set test to 1 to run 2005 to 2008 best parameters
-# Set test to 2 to run2009 to 2008 best parameters
-# Set test to 3 (or higher) to run 2005 to 2013 best parameters
+# Set test to 2 to run 2009 to 2008 best parameters
+# Set test to 3 to run over all parameter combinations
+# Set test to 4 (or higher) to run 2005 to 2013 best parameters
 test = 3
-for year in [2007]:
+for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 #year = 2011
 	strYear = str(year)
 	dataLoc = '../InData/' + strYear
@@ -503,6 +526,9 @@ for year in [2007]:
 			stakeData[stakeName]['Org_Bn'] = float(line['Bn'].strip())
 		except:
 			pass
+	# Iterate over all possible parameter value combinations
+	# Scoring for each parameter
+	scores = {'ddfSnow':{}, 'ddfSi':{}, 'ddfFirn':{}, 'ddfIce':{}, 'lapse':{}, 'elevLapse':{}, 'sfe':{}, 'ELA':{}, 'refElev':{}}
 	for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
 		paramDict = {}
 		paramDict['ddfSnow'] = it1
@@ -515,9 +541,7 @@ for year in [2007]:
 		paramDict['ELA'] = it8
 		paramDict['refElev'] = refElev
 		#
-		# 'points' stores each survey point and the model results, all inherited from 'data'
 		# 'data' is a copy of the original 'stakeData'
-		points = {}
 		data = copy.deepcopy(stakeData)
 		stakeNames = stakeData.keys()
 		stakeNames.sort()
@@ -584,6 +608,7 @@ for year in [2007]:
 				obsBsMinMean = obsBs - obsBsmean
 				BsR2 = 1 - ((np.nansum(obsBsMinModBs**2)) / (np.nansum(obsBsMinMean**2)))
 				report[(setKeys[i]+'_R2')] = BsR2
+				scores = scoring(scores, paramDict, BsR2)
 				if i == 0:
 					if BsR2 >= bestBsR2:
 						bestBsR2 = BsR2
@@ -593,6 +618,8 @@ for year in [2007]:
 						reportKeys.sort()
 						for k in reportKeys:
 							print k, report[k]
+						print scores
+						scoreWrite(scores, outputDir)
 				i = i+1
 				middle = middle+1
 		if writeTest == 1:
@@ -622,5 +649,8 @@ for year in [2007]:
 					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r')
 					i = i+1
 					middle = middle+1
-		writeTest = 0
+		if counter %100 == 0:
+			print counter
 		counter = counter+1
+		writeTest = 0
+	scoreWrite(scores, outputDir)
