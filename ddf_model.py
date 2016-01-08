@@ -45,6 +45,9 @@ import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.backends.backend_pdf import PdfPages
 import ParameterAnalysis
+from spatialfiles import pt2fmt
+from standard import namer, makeDir, makeDirTS, filelist, import2vector
+
 #
 # CLASSES
 #
@@ -156,57 +159,57 @@ class DdfCell:
 #
 # FUNCTIONS
 #
-def namer(pathstring):
-	'''Get name and extension of a file
-	To use: name,ext,path,namefull = namer(pathstring) '''
-	## Called by:
-	namefull = os.path.basename(pathstring)
-	path = os.path.dirname(pathstring)
-	ext = namefull.split('.')[1]
-	name = namefull.split('.')[0]
-	return name,ext,path,namefull
-#
-def makeDir(path,name):
-	'''Make a directory at given location
-	To use: outDir = makeDir(path, name)'''
-	## Called by:
-	targetDir = os.path.join(path,name)
-	if not os.path.exists(targetDir):
-		os.makedirs(targetDir)
-	return targetDir
-#
-def makeDirTS(path,name):
-	'''Make a directory at given location with current time stamp added to name
-	To use: outDir, containDir = makeDirTS(path, name)'''
-	## Called by:
-	tempDir = os.path.join(path,name)
-	namstr = datetime.now().strftime('%j_%H%M%S')
-	targetDir = os.path.join(tempDir,namstr)
-	if not os.path.exists(targetDir):
-		os.makedirs(targetDir)
-	return targetDir, tempDir
-#
-def filelist(folder,ending):
-	"""Return list of specific file type in folder other than current folder.
-	To use: filelist = filelist(folder,ending)"""
-	# Called by:
-	matchstring = '*.' + ending
-	filelist = fnmatch.filter(os.listdir(folder),matchstring)
-	print 'From ', folder, ' the following matched ', matchstring, '\n', filelist
-	return filelist
-#
-def pt2fmt(pt):
-	'''Format types for data extraction from shade file'''
-	fmttypes = {
-		GDT_Byte: 'B',
-		GDT_Int16: 'h',
-		GDT_UInt16: 'H',
-		GDT_Int32: 'i',
-		GDT_UInt32: 'I',
-		GDT_Float32: 'f',
-		GDT_Float64: 'f'
-		}
-	return fmttypes.get(pt, 'x')
+# def namer(pathstring):
+# 	'''Get name and extension of a file
+# 	To use: name,ext,path,namefull = namer(pathstring) '''
+# 	## Called by:
+# 	namefull = os.path.basename(pathstring)
+# 	path = os.path.dirname(pathstring)
+# 	ext = namefull.split('.')[1]
+# 	name = namefull.split('.')[0]
+# 	return name,ext,path,namefull
+# #
+# def makeDir(path,name):
+# 	'''Make a directory at given location
+# 	To use: outDir = makeDir(path, name)'''
+# 	## Called by:
+# 	targetDir = os.path.join(path,name)
+# 	if not os.path.exists(targetDir):
+# 		os.makedirs(targetDir)
+# 	return targetDir
+# #
+# def makeDirTS(path,name):
+# 	'''Make a directory at given location with current time stamp added to name
+# 	To use: outDir, containDir = makeDirTS(path, name)'''
+# 	## Called by:
+# 	tempDir = os.path.join(path,name)
+# 	namstr = datetime.now().strftime('%j_%H%M%S')
+# 	targetDir = os.path.join(tempDir,namstr)
+# 	if not os.path.exists(targetDir):
+# 		os.makedirs(targetDir)
+# 	return targetDir, tempDir
+# #
+# def filelist(folder,ending):
+# 	"""Return list of specific file type in folder other than current folder.
+# 	To use: filelist = filelist(folder,ending)"""
+# 	# Called by:
+# 	matchstring = '*.' + ending
+# 	filelist = fnmatch.filter(os.listdir(folder),matchstring)
+# 	print 'From ', folder, ' the following matched ', matchstring, '\n', filelist
+# 	return filelist
+# #
+# def pt2fmt(pt):
+# 	'''Format types for data extraction from shade file'''
+# 	fmttypes = {
+# 		GDT_Byte: 'B',
+# 		GDT_Int16: 'h',
+# 		GDT_UInt16: 'H',
+# 		GDT_Int32: 'i',
+# 		GDT_UInt32: 'I',
+# 		GDT_Float32: 'f',
+# 		GDT_Float64: 'f'
+# 		}
+# 	return fmttypes.get(pt, 'x')
 #
 def getSettings(DataLoc, lastDate):
 	'''Set weather station elevation, julian day of last winter probing and list of julian days for which melt sum to be exported and first day in shade model.
@@ -251,7 +254,7 @@ def getSettings(DataLoc, lastDate):
 			jdatelist.append(int(j))
 	# Give the Julian day at which the shade raster starts. This should not vary from year to year.
 	if 'ShadeStart' not in settings:
-		startday = 100
+		startday = 1
 	else:
 		startday = int(settings['ShadeStart'])
 	return refElev, jdayBw, jdatelist, startday
@@ -280,22 +283,19 @@ def GetShadeVals(x,y, raster, transf, bandcount, vals, startday):
 	To use: vals = GetShadeVals(x,y, raster, transf, bandcount, startday)'''
 	# Called by:
 	# get image size
-	#print x, y
 	success, transfInv = gdal.InvGeoTransform(transf)
 	if not success:
 		print "Failed InvGeoTransform()"
 		sys.exit(1)
-	rows = raster.RasterYSize # pyflakes - unused
-	cols = raster.RasterXSize # pyflakes - unused
 	xpix, ypix = gdal.ApplyGeoTransform(transfInv, x, y)
 	# Read the file band to a matrix called band_1
 	for i in range(1,bandcount+1):
 		band = raster.GetRasterBand(i)
-		bandtype = gdal.GetDataTypeName(band.DataType) # pyflakes - unused
+		bandtype = gdal.GetDataTypeName(band.DataType)
 		if band is None:
 			continue
 		structval = band.ReadRaster(int(xpix), int(ypix), 1,1, buf_type = band.DataType )
-		fmt = pt2fmt(band.DataType)
+		fmt = pt2fmt(bandtype)
 		intval = struct.unpack(fmt , structval)
 		vals[i] = intval[0]
 	return vals
@@ -458,7 +458,7 @@ time_one = time_zero
 #
 # Get shading data
 # Location of file containing a multiband raster, each band represents the shading on one day. 1 = no shade, 0 = really quite dark
-shadefile = '../Output/Shades/SG_shade.tif'
+shadefile = '../InData/Shades/SG_shade.tif'
 # Read the shade factor raster in to memory
 raster, transf, bandcount = getShadeFile(shadefile)
 #
@@ -466,12 +466,13 @@ raster, transf, bandcount = getShadeFile(shadefile)
 # Set test to 1 to run all parameters and compare results with field data
 # Set test to 2 to run 2005 to 2008 best parameters and compare results with field data
 # Set test to 3 (or higher) to run 2005 to 2013 best parameters and compare results with field data
-test = 1
+test = 0
+print "ddf_model"
 # [2009,2010,2011,2012,2013]
 # [2005,2006,2007,2008]
 # [2005,2006,2007,2008,2009,2010,2011,2012,2013]
 # Choose which data set is to be run.
-for year in [2005]:
+for year in [2013]:
 	#
 	strYear = str(year)
 	dataLoc = '../InData/' + strYear
@@ -598,7 +599,7 @@ for year in [2005]:
 						#
 						# Create vector for shade values
 						vals = []
-						for d in range(365):
+						for d in range(366):
 							vals.append(1)
 						#
 						# Read stake data
@@ -723,8 +724,8 @@ for year in [2005]:
 								parUsage['BsR2'].append(BsR2)
 								parUsage['BnR2'].append(BnR2)
 							#
-						print "Check {0}: latest:{1}, max:{2}".format(outputname, bsR2list[-1], max(bsR2list))
-						if test != 0: #and bsR2list[-1] == max(bsR2list):
+							print "Check {0}: latest:{1}, max:{2}".format(outputname, bsR2list[-1], max(bsR2list))
+						if test != 0:# and bsR2list[-1] == max(bsR2list):
 							if bsR2list[-1] >= bestBsR2 or np.isnan(bestBsR2):
 								time_i = datetime.now()
 								print "\n %s latest Bs R^2:%2.3f, best Bs R^2: %2.3f at %s" %(counter, bsR2list[-1], bestBsR2, time_i)

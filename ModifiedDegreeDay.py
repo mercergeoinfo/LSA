@@ -203,7 +203,7 @@ def getSettings(DataLoc, lastDate):
 			jdatelist.append(int(j))
 	# Give the Julian day at which the shade raster starts. This should not vary from year to year.
 	if 'ShadeStart' not in settings:
-		startday = 100
+		startday = 1
 	else:
 		startday = int(settings['ShadeStart'])
 	return refElev, jdayBw, jdatelist, startday

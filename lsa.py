@@ -22,7 +22,8 @@ import itertools
 #import math
 import numpy as np
 #import numpy.ma as ma
-#import scipy.stats as stats
+from scipy import stats
+from scipy.optimize import curve_fit
 from scipy.stats.stats import nanmean
 from osgeo import gdal
 #from osgeo import ogr
@@ -310,7 +311,7 @@ def plotDifElev(outputname,outDir, title, x, y, colour):
 	plt.axis([xmin, xmax, -2, 2])
 	# for pnt in range(len(dbvecs[jd]['Stake'])):
 	# ax1.annotate(dbvecs[jd]['Stake'][pnt],xy=(dbvecs[jd]['Elevation'][pnt],1.8), rotation=90)
-	plt.xlabel('Elevation (m.a.s.l.')
+	plt.xlabel('Elevation (m.a.s.l.)')
 	plt.ylabel('Measured - Modelled Melt (m w.e.)')
 	plt.title('Measured - Modelled against Elevation')
 	# plt.show()
@@ -319,9 +320,59 @@ def plotDifElev(outputname,outDir, title, x, y, colour):
 	plt.close()
 	return 0
 #
+def plotDif(outputname,outDir, title, x, y, colour):
+	'''Plot modelled data.
+	To use: plotDif(outputname,outDir, title, x, y, colour)'''
+	#
+	matplotlib.rcParams['axes.grid'] = True
+	matplotlib.rcParams['legend.fancybox'] = True
+	# matplotlib.rcParams['figure.figsize'] = 18, 9 # Mine
+	# matplotlib.rcParams['figure.figsize'] = 16.54, 11.69 # A3
+	matplotlib.rcParams['figure.figsize'] = 11.69, 8.27 # A4
+	matplotlib.rcParams['savefig.dpi'] = 300
+	plotName = outputname + '.pdf'
+	pp1 = PdfPages(os.path.join(outDir,plotName))
+	fig1 = plt.figure(1)
+	ax1 = fig1.add_subplot(111)
+	# lnclr = ['k','r','g','b','y','c','m'] # pyflakes - unused
+	# lnsty = ['-','--','-.',':'] # pyflakes - unused
+	# mrsty = ['o','s','v','*','x','+','1','2','3','4'] # pyflakes - unused
+	xmax = max(x)
+	xmin = min(x)
+	ymax = max(y)
+	ymin = min(y)
+	#slope, intercept, r_value, p_value, std_err = stats.linregress(x,y)
+	# labelString = outputname.split("_")[0] + " " + outputname.split("_")[-1]
+	labelString = title
+	ax1.plot(x,y, color=colour, marker='o', linestyle='None', label=labelString)
+	matplotlib.pyplot.axes().set_position([0.04, 0.065, 0.8, 0.9])
+	ax1.legend(bbox_to_anchor=(0.0, 1), loc=2, borderaxespad=0.1, ncol=3, title = "Julian Day")
+	ax1.plot([xmin,xmax],[xmin,xmax],'-k')
+	#ax1.plot([0,xmax],[intercept, intercept + slope*xmax])
+	#ax1.plot([0,xmax],[intercept + std_err, intercept + slope*xmax + std_err], ':b')
+	#ax1.plot([0,xmax],[intercept - std_err, intercept + slope*xmax - std_err], ':b')
+	#lastind = str(jdatelist[-1])
+	#ax1.plot([0,5],np.multiply(dbvecs[lastind]['slope'],[0,5]) + dbvecs[lastind]['intercept'],'-b')
+	#plt.axis([xmin, xmax, ymin, ymax*1.2])
+	plt.axis([xmin+0.1, xmax+0.1, ymin+0.1, ymax+0.1])
+	# for pnt in range(len(dbvecs[jd]['Stake'])):
+	# ax1.annotate(dbvecs[jd]['Stake'][pnt],xy=(dbvecs[jd]['Elevation'][pnt],1.8), rotation=90)
+	plt.xlabel('Measured Melt (m.w.e.)')
+	plt.ylabel('Modelled Melt (m.w.e.)')
+	plt.title('Modelled against Measured')
+	# plt.show()
+	pp1.savefig(bbox_inches='tight')
+	pp1.close()
+	plt.close()
+	return 0
+#
+def func(x, a, b, c):
+	'''For assessment of differences between model and measured'''
+	return a*x**2 + b*x + c
+#
 def scoring(scores, paramDict, BsR2):
 	'''Set scores for each parameter when iterating over multiple possible combinations'''
-	parameterNames =  ['ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
+	parameterNames = ['ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
 	for p in parameterNames:
 		value = paramDict[p]
 		if value not in scores[p].keys():
@@ -340,6 +391,23 @@ def scoreWrite(scores, outDir):
 		with open (scoreFile, 'w') as fp:
 			for p in sorted(scores[keyName].keys()):
 				fp.write("%2.4f,%2.4f\n" % (p, scores[keyName][p]))
+	return 0
+#
+def usageUpdate(parUsage, paramDict, BsR2):
+	parameterNames = ['ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
+	for p in parameterNames:
+		value = paramDict[p]
+		parUsage[p].append(value)
+	parUsage['BsR2'].append(BsR2)
+	return parUsage
+#
+def parameterCheckWrite(outputDir, year, parUsage):
+	paramFile = os.path.join(outputDir,'UsedParameters.csv')
+	keys = ['BsR2', 'ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
+	with open (paramFile, 'w') as fp:
+		writer = csv.writer(fp, delimiter = ",")
+		writer.writerow(keys)
+		writer.writerows(zip(*[parUsage[key] for key in keys]))
 	return 0
 #
 ################################### MAIN ###################################
@@ -461,9 +529,13 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 		elevLapse = [rangeZ] # Elevation dependant lapse rate
 		sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
 		ELA = [1500] # Equilibrium line, for firn or ice under snow
+	#
+	# Settings and counters for testing multiple parameter values
 	counter = 0
-	bestBsR2 = -9999
-	BsR2 = np.nan
+	# bestBsR2 = -9999 # name refers to R-squared test but maybe replaced by norm of residuals
+	# BsR2 = np.nan # name refers to R-squared test but maybe replaced by norm of residuals
+	bestResNorm = 9999 # Norm of residuals version
+	ResNorm = np.nan # Norm of residuals version
 	writeTest = 0
 	# Directory for output
 	outputDir = os.path.join('../Output/', strYear)
@@ -529,6 +601,7 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 	# Iterate over all possible parameter value combinations
 	# Scoring for each parameter
 	scores = {'ddfSnow':{}, 'ddfSi':{}, 'ddfFirn':{}, 'ddfIce':{}, 'lapse':{}, 'elevLapse':{}, 'sfe':{}, 'ELA':{}, 'refElev':{}}
+	parUsage = {'BsR2':[], 'ddfSnow':[], 'ddfSi':[], 'ddfFirn':[], 'ddfIce':[], 'lapse':[], 'elevLapse':[], 'sfe':[], 'ELA':[], 'refElev':[]}
 	for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
 		paramDict = {}
 		paramDict['ddfSnow'] = it1
@@ -602,24 +675,38 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 				# Calculate R2
 				modBs = np.array(data['DataSets'][setKeys[i]])
 				obsBs = np.array(data['DataSets'][setKeys[middle]])
+				# Fit regression line through differences. Not good test of model
+				# popt, pcov = curve_fit(func,obsBs, modBs)
+				# variance = np.diagonal(pcov)
+				# SE = np.sqrt(variance)
+				#
 				modBsmean = nanmean(modBs)
 				obsBsmean = nanmean(obsBs)
 				obsBsMinModBs = obsBs - modBs
 				obsBsMinMean = obsBs - obsBsmean
-				BsR2 = 1 - ((np.nansum(obsBsMinModBs**2)) / (np.nansum(obsBsMinMean**2)))
-				report[(setKeys[i]+'_R2')] = BsR2
-				scores = scoring(scores, paramDict, BsR2)
+				SSres = (np.nansum(obsBsMinModBs**2))
+				SStot = (np.nansum(obsBsMinMean**2))
+				ResNorm = SSres**0.5
+				# BsR2 = 1 - (SSres / SStot) # BsR2 version
+				# report[(setKeys[i]+'_R2')] = BsR2 # BsR2 version
+				report[(setKeys[i]+'_RN')] = ResNorm # Norm of residuals version
+				# scores = scoring(scores, paramDict, BsR2) # BsR2 version
+				scores = scoring(scores, paramDict, ResNorm) # Norm of residuals version
+				# parUsage = usageUpdate(parUsage, paramDict, BsR2) #BsR2 version
+				parUsage = usageUpdate(parUsage, paramDict, ResNorm) # Norm of residuals version
 				if i == 0:
-					if BsR2 >= bestBsR2:
-						bestBsR2 = BsR2
+					# if BsR2 >= bestBsR2: # BsR2 version
+						# bestBsR2 = copy.copy(BsR2) # BsR2 version
+					if ResNorm <= bestResNorm: # Norm of residuals version
+						bestResNorm = copy.copy(ResNorm) # Norm of residuals version
 						writeTest = 1
 						print "\nRun: {0} ".format(counter)
 						reportKeys = report.keys()
 						reportKeys.sort()
 						for k in reportKeys:
 							print k, report[k]
+						# scoreWrite(scores, outputDir) # Write out scores for each parameter after each iteration. No real need
 						print scores
-						scoreWrite(scores, outputDir)
 				i = i+1
 				middle = middle+1
 		if writeTest == 1:
@@ -637,20 +724,24 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 				setKeys = data['DataSets'].keys()
 				# Order all Mod first, then all Org
 				setKeys.sort()
-				start = 0
-				end = len(setKeys)
-				middle = end/2
-				i = start
-				while i < end/2:
-					modBs = np.array(data['DataSets'][setKeys[i]])
-					obsBs = np.array(data['DataSets'][setKeys[middle]])
-					bsDiff = obsBs - modBs
-					pltnmBs = outputname + setKeys[i] + '_measured'
-					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r')
-					i = i+1
-					middle = middle+1
+				# Plot differences between measured and modelled
+# 				start = 0
+# 				end = len(setKeys)
+# 				middle = end/2
+# 				i = start
+# 				while i < end/2:
+# 					modBs = np.array(data['DataSets'][setKeys[i]])
+# 					obsBs = np.array(data['DataSets'][setKeys[middle]])
+# 					bsDiff = obsBs - modBs
+# 					pltnmBs = outputname + setKeys[i] + '_measured'
+# 					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r')
+# 					# pltnmBsmm = outputname + setKeys[i] + '_modmeas'
+# 					# plotDif(pltnmBsmm, outDir, setKeys[i], obsBs, modBs, 'b')
+# 					i = i+1
+# 					middle = middle+1
 		if counter %100 == 0:
 			print counter
 		counter = counter+1
 		writeTest = 0
 	scoreWrite(scores, outputDir)
+	parameterCheckWrite(outputDir, year, parUsage)
