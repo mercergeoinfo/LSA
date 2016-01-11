@@ -509,16 +509,25 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 		sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
 		ELA = [1500] # Equilibrium line, for firn or ice under snow
 	elif test == 3:
+		valuerange1 = range(30,60,2)
+		valuerange1 = np.array(valuerange1)*0.0001
+		valuerange1 = list(valuerange1)
+		valuerange2 = range(40,80,2)
+		valuerange2 = np.array(valuerange2)*0.0001
+		valuerange2 = list(valuerange2)
+		valuerange3 = range(40,60,2)
+		valuerange3 = np.array(valuerange3)*0.0001
+		valuerange3 = list(valuerange3)
 # 		ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048,0.0050,0.0052]
-		ddfSnow = [0.0038,0.0040,0.0042,0.0044,0.0046,0.0048,0.0050,0.0052]
+		ddfSnow = valuerange1
 # 		ddfSi = [0.0045,0.0047,0.0049,0.0051,0.0053]
-		ddfSi = [0.0049,0.0051,0.0053,0.0055]
-		ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
+		ddfSi = valuerange3
+# 		ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
+		ddfFirn = valuerange3
 # 		ddfIce = [0.0043,0.0045,0.0047,0.0049,0.0051,0.0053,0.0055,0.0057,0.0059,0.0061,0.0063]
-		ddfIce = [0.0047,0.0049,0.0051,0.0053,0.0055,0.0057,0.0059,0.0061,0.0063]
+		ddfIce = valuerange2
 # 		lapse = [0.0042,0.0044,0.0046,0.0048,0.0050,0.0055,0.0057,0.0059,0.0061,0.0063,0.0065,0.0068,0.0070,0.0072,0.0074,0.0076]
-		lapse = [0.0038,0.0040,0.0042,0.0044,0.0046,0.0048,0.0050,0.0053,0.0055,0.0057,0.0059,0.0061,0.0063]
-
+		lapse = valuerange2
 		rangeZ = (2100 - 1150)
 		elevLapse = [rangeZ] # Elevation dependant lapse rate
 		sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
@@ -606,6 +615,7 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 	# Scoring for each parameter
 	scores = {'ddfSnow':{}, 'ddfSi':{}, 'ddfFirn':{}, 'ddfIce':{}, 'lapse':{}, 'elevLapse':{}, 'sfe':{}, 'ELA':{}, 'refElev':{}}
 	parUsage = {'BsR2':[], 'ddfSnow':[], 'ddfSi':[], 'ddfFirn':[], 'ddfIce':[], 'lapse':[], 'elevLapse':[], 'sfe':[], 'ELA':[], 'refElev':[]}
+	print len(ddfSnow)*len(ddfSi)*len(ddfFirn)*len(ddfIce)*len(lapse)*len(elevLapse)*len(sfe)*len(ELA)
 	for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
 		paramDict = {}
 		paramDict['ddfSnow'] = it1
@@ -710,7 +720,7 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 						for k in reportKeys:
 							print k, report[k]
 						# scoreWrite(scores, outputDir) # Write out scores for each parameter after each iteration. No real need
-						print scores
+						# print scores
 				i = i+1
 				middle = middle+1
 		if writeTest == 1:
