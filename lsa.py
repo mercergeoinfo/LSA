@@ -113,7 +113,7 @@ class DdfCell:
 			ddf = self.ddfSnow
 		elif self.currSnowMass < si_depth and self.currSnowMass > 0.0:
 			ddf = self.ddfSi
-		elif self.currSnowMass < 0.0 and self.elevation > self.ELA:
+		elif self.currSnowMass <= 0.0 and self.elevation > self.ELA:
 			ddf = self.ddfFirn
 		else:
 			ddf = self.ddfIce
@@ -275,7 +275,7 @@ def reportWrite(report, outDir):
 	reportFile = os.path.join(outDir,'Report.txt')
 	with open (reportFile, 'w') as fp:
 		for p in sorted(report.keys()):
-			fp.write("%s:%2.4f\n" % (p, report[p]))
+			fp.write("%s,%2.4f\n" % (p, report[p]))
 	return 0
 #
 def plotDifElev(outputname,outDir, title, x, y, colour):
@@ -510,10 +510,10 @@ for year in [2005,2006,2007,2008,2009,2010,2011,2013]:
 		sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
 		ELA = [1500] # Equilibrium line, for firn or ice under snow
 	elif test == 3:
-		ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048]
-		ddfSi = [0.0045,0.0047,0.0049,0.0051]
+		ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048,0.0050,0.0052]
+		ddfSi = [0.0045,0.0047,0.0049,0.0051,0.0053]
 		ddfFirn = [0.0043,0.0045,0.0048,0.0050,0.0053,0.0055,0.0058]
-		ddfIce = [0.0043,0.0045,0.0047,0.0049,0.0051,0.0053,0.0055,0.0057]
+		ddfIce = [0.0043,0.0045,0.0047,0.0049,0.0051,0.0053,0.0055,0.0057,0.0059,0.0061,0.0063]
 		lapse = [0.0042,0.0044,0.0046,0.0048,0.0050,0.0055,0.0057,0.0059,0.0061,0.0063,0.0065,0.0068,0.0070,0.0072,0.0074,0.0076]
 		rangeZ = (2100 - 1150)
 		elevLapse = [rangeZ] # Elevation dependant lapse rate
