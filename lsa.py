@@ -303,12 +303,12 @@ def plotDifElev(outputname,outDir, title, x, y, colour):
 	labelString = title
 	ax1.plot(x,y, color=colour, marker='o', linestyle='None', label=labelString)
 	matplotlib.pyplot.axes().set_position([0.04, 0.065, 0.8, 0.9])
-	ax1.legend(bbox_to_anchor=(0.0, 0), loc=3, borderaxespad=0.1, ncol=3, title = "Component, Julian Day")
-	ax1.plot([xmin,xmax],[0,0],'-k')
+	# ax1.legend(bbox_to_anchor=(0.0, 0), loc=3, borderaxespad=0.1, ncol=1, title = "Julian Day")
+	ax1.plot([xmin/1.01,xmax*1.01],[0,0],'-k')
 	#lastind = str(jdatelist[-1])
 	#ax1.plot([0,5],np.multiply(dbvecs[lastind]['slope'],[0,5]) + dbvecs[lastind]['intercept'],'-b')
 	#plt.axis([xmin, xmax, ymin, ymax*1.2])
-	plt.axis([xmin, xmax, -2, 2])
+	plt.axis([xmin/1.01, xmax*1.01, -2, 2])
 	# for pnt in range(len(dbvecs[jd]['Stake'])):
 	# ax1.annotate(dbvecs[jd]['Stake'][pnt],xy=(dbvecs[jd]['Elevation'][pnt],1.8), rotation=90)
 	plt.xlabel('Elevation (m.a.s.l.)')
@@ -370,15 +370,15 @@ def func(x, a, b, c):
 	'''For assessment of differences between model and measured'''
 	return a*x**2 + b*x + c
 #
-def scoring(scores, paramDict, BsR2):
+def scoring(scores, paramDict, BsScore):
 	'''Set scores for each parameter when iterating over multiple possible combinations'''
 	parameterNames = ['ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
 	for p in parameterNames:
 		value = paramDict[p]
 		if value not in scores[p].keys():
-			scores[p][value] = BsR2
+			scores[p][value] = BsScore
 		elif value in scores[p].keys():
-			scores[p][value] = scores[p][value] + BsR2
+			scores[p][value] = scores[p][value] + BsScore
 		else:
 			print 'Scoring error'
 	return scores
@@ -393,17 +393,17 @@ def scoreWrite(scores, outDir):
 				fp.write("%2.4f,%2.4f\n" % (p, scores[keyName][p]))
 	return 0
 #
-def usageUpdate(parUsage, paramDict, BsR2):
+def usageUpdate(parUsage, paramDict, BsScore):
 	parameterNames = ['ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
 	for p in parameterNames:
 		value = paramDict[p]
 		parUsage[p].append(value)
-	parUsage['BsR2'].append(BsR2)
+	parUsage['BsScore'].append(BsScore)
 	return parUsage
 #
 def parameterCheckWrite(outputDir, year, parUsage):
 	paramFile = os.path.join(outputDir,'UsedParameters.csv')
-	keys = ['BsR2', 'ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
+	keys = ['BsScore', 'ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
 	with open (paramFile, 'w') as fp:
 		writer = csv.writer(fp, delimiter = ",")
 		writer.writerow(keys)
@@ -411,6 +411,8 @@ def parameterCheckWrite(outputDir, year, parUsage):
 	return 0
 #
 ################################### MAIN ###################################
+#
+# Try calling with e.g "echo 2005 2006 2007 2008 2009 2010 2011 2013 2014 | xargs ./lsa.py"
 #
 # To run this you will need the following:
 # A shading file where each pixel represents shading on the glacier at each julian day to be modelled
@@ -452,9 +454,13 @@ raster, transf, bandcount = getShadeFile(shadefile)
 #
 # Set test to 1 to run 2005 to 2008 best parameters
 # Set test to 2 to run 2009 to 2008 best parameters
-# Set test to 3 to run over all parameter combinations
-# Set test to 4 (or higher) to run 2005 to 2013 best parameters
-test = 3
+# Set test to 3 to run 2005 to 2013 best parameters
+# Set test to 4 to run specified set
+# Set test to 5 to run over all parameter combinations
+test = 5
+writeScores = 'no' # 'yes' Can be ignored, will be set to yes if  test set to run over multiple parameters (5)
+# Set plotOn to 1 to plot differences between modelled and measured
+plotOn = 1
 #
 def main():
 # Set up list of years from command line arguments
@@ -468,7 +474,7 @@ def main():
 				sys.exit("Argument Error")
 		print years
 	else:
-		years = [2005,2006,2007,2008,2009,2010,2011,2013]
+		years = [2005,2006,2007,2008,2009,2010,2011,2012,2013]
 # Run main function
 	for year in years:
 		strYear = str(year)
@@ -504,26 +510,47 @@ def main():
 		#
 		# Set parameters for the melt model
 		if test == 1: # Block 1, 2005 to 2008 best parameters
-			ddfSnow=[0.0040]
-			ddfSi=[0.0048]
-			ddfFirn=[0.0050]
-			ddfIce=[0.0050]
-			lapse=[0.0064]
+			ddfSnow=[0.0048]
+			ddfSi=[0.0056]
+			ddfFirn=[0.0054]
+			ddfIce=[0.0060]
+			lapse=[0.0040]
 			rangeZ = (2100 - 1150)
 			elevLapse =[rangeZ]# Elevation dependant lapse rate
 			sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
 			ELA = [1500] # Equilibrium line, for firn or ice under snow
 		elif test == 2: # Block 2, 2009 to 2013 best parameters
-			ddfSnow = [0.0038]
-			ddfSi = [0.0051]
-			ddfFirn = [0.0050]
+			ddfSnow = [0.0036]
+			ddfSi = [0.0048]
+			ddfFirn = [0.0042]
 			ddfIce = [0.0054]
-			lapse = [0.0055]
+			lapse = [0.0056]
 			rangeZ = (2100 - 1150)
 			elevLapse = [rangeZ] # Elevation dependant lapse rate
 			sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
 			ELA = [1500] # Equilibrium line, for firn or ice under snow
-		elif test == 3:
+		elif test == 3: #All, 2005 to 2013 best parameters
+			ddfSnow = [0.0042]
+			ddfSi = [0.0056]
+			ddfFirn = [0.0044]
+			ddfIce = [0.0056]
+			lapse = [0.0048]
+			rangeZ = (2100 - 1150)
+			elevLapse = [rangeZ] # Elevation dependant lapse rate
+			sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
+			ELA = [1500] # Equilibrium line, for firn or ice under snow
+		elif test == 4: # Parameters set by you.
+			ddfSnow = [0.0036] # 0.0046 0.0058 0.0036 0.0036 0.0036 0.0042 0.0058 0.0036
+			ddfSi = [0.0044]       # 0.0054 0.0056 0.0044 0.0044 0.0052 0.0056 0.0056 0.0044
+			ddfFirn = [0.0058]   # 0.0058 0.0058 0.0040 0.0058 0.0058 0.0040 0.0058 0.0058
+			ddfIce = [0.0060]     # 0.0064 0.0064 0.0040 0.0040 0.0064 0.0046 0.0060 0.0060
+			lapse = [0.0068]       # 0.0044 0.0040 0.0052 0.0044 0.0056 0.0040 0.0040 0.0068
+			rangeZ = (2100 - 1150)
+			elevLapse = [rangeZ] # Elevation dependant lapse rate
+			sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
+			ELA = [1500] # Equilibrium line, for firn or ice under snow
+		elif test == 5: # Range of values
+			writeScores = 'yes'
 	# 		ddfSnow = [0.0030,0.0032,0.0034,0.0036,0.0038,0.0040,0.0042,0.0044,0.0046,0.0048,0.0050,0.0052]
 			ddfSnow = range(36,60,2)
 			ddfSnow = np.array(ddfSnow)*0.0001
@@ -548,16 +575,7 @@ def main():
 			elevLapse = [rangeZ] # Elevation dependant lapse rate
 			sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
 			ELA = [1500] # Equilibrium line, for firn or ice under snow
-		else: #All, 2005 to 2013 best parameters
-			ddfSnow = [0.0039]
-			ddfSi = [0.0049]
-			ddfFirn = [0.0050]
-			ddfIce = [0.0052]
-			lapse = [0.0059]
-			rangeZ = (2100 - 1150)
-			elevLapse = [rangeZ] # Elevation dependant lapse rate
-			sfe = [1.5] # Shading factor exponent (adjusts the shading value at each point)
-			ELA = [1500] # Equilibrium line, for firn or ice under snow
+
 		#
 		# Settings and counters for testing multiple parameter values
 		counter = 0
@@ -630,7 +648,7 @@ def main():
 		# Iterate over all possible parameter value combinations
 		# Scoring for each parameter
 		scores = {'ddfSnow':{}, 'ddfSi':{}, 'ddfFirn':{}, 'ddfIce':{}, 'lapse':{}, 'elevLapse':{}, 'sfe':{}, 'ELA':{}, 'refElev':{}}
-		parUsage = {'BsR2':[], 'ddfSnow':[], 'ddfSi':[], 'ddfFirn':[], 'ddfIce':[], 'lapse':[], 'elevLapse':[], 'sfe':[], 'ELA':[], 'refElev':[]}
+		parUsage = {'BsScore':[], 'ddfSnow':[], 'ddfSi':[], 'ddfFirn':[], 'ddfIce':[], 'lapse':[], 'elevLapse':[], 'sfe':[], 'ELA':[], 'refElev':[]}
 		iterationcount = len(ddfSnow)*len(ddfSi)*len(ddfFirn)*len(ddfIce)*len(lapse)*len(elevLapse)*len(sfe)*len(ELA)
 		print "Total number of runs: %s" % (iterationcount)
 		for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
@@ -731,7 +749,7 @@ def main():
 						if ResNorm <= bestResNorm: # Norm of residuals version
 							bestResNorm = copy.copy(ResNorm) # Norm of residuals version
 							writeTest = 1
-							print "\nRun: {0} of {1}".format(counter, iterationcount)
+							print "\nRun: {0} of {1}".format(counter+1, iterationcount)
 							reportKeys = report.keys()
 							reportKeys.sort()
 							for k in reportKeys:
@@ -756,25 +774,27 @@ def main():
 					# Order all Mod first, then all Org
 					setKeys.sort()
 					# Plot differences between measured and modelled
-	# 				start = 0
-	# 				end = len(setKeys)
-	# 				middle = end/2
-	# 				i = start
-	# 				while i < end/2:
-	# 					modBs = np.array(data['DataSets'][setKeys[i]])
-	# 					obsBs = np.array(data['DataSets'][setKeys[middle]])
-	# 					bsDiff = obsBs - modBs
-	# 					pltnmBs = outputname + setKeys[i] + '_measured'
-	# 					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r')
-	# 					# pltnmBsmm = outputname + setKeys[i] + '_modmeas'
-	# 					# plotDif(pltnmBsmm, outDir, setKeys[i], obsBs, modBs, 'b')
-	# 					i = i+1
-	# 					middle = middle+1
+					if plotOn == 1:
+						start = 0
+						end = len(setKeys)
+						middle = end/2
+						i = start
+						while i < end/2:
+							modBs = np.array(data['DataSets'][setKeys[i]])
+							obsBs = np.array(data['DataSets'][setKeys[middle]])
+							bsDiff = obsBs - modBs
+							pltnmBs = outputname + setKeys[i] + '_measured'
+							plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r')
+							# pltnmBsmm = outputname + setKeys[i] + '_modmeas'
+							# plotDif(pltnmBsmm, outDir, setKeys[i], obsBs, modBs, 'b')
+							i = i+1
+							middle = middle+1
 			if counter %100 == 0:
 				print "%s of %s" % (counter, iterationcount)
 			counter = counter+1
 			writeTest = 0
-		scoreWrite(scores, outputDir)
+		if writeScores == 'yes':
+			scoreWrite(scores, outputDir)
 		parameterCheckWrite(outputDir, year, parUsage)
 #
 if __name__ == "__main__":
