@@ -19,15 +19,23 @@ The shading is a hillshade based adjusted summing the "daylight" hours shade at 
 
 ### ModifiedDegreeDay.py
 
-The main model. Requires spatialfiles.py and standard.py from my other repo
+__DEAD__The main model. Requires spatialfiles.py and standard.py from my other repo
 
 ### ParameterAnalysis.py
 
-Used only for assessment of model parameters
+_DEAD__Used only for assessment of model parameters
 
 ### Shade.py
 
 Creates a geotiff file containing multiple layers, each layer the shade cast on glacier for each julian day
+
+### lsa.py
+
+The melt model script. Primary usage is for deriving optimum and best scoring parameter vales
+
+### lsaModel.py
+
+Version of lsa.py to be main model with iterative recalculation of snow depth
 
 ### Other files
 
@@ -37,4 +45,5 @@ Creates a geotiff file containing multiple layers, each layer the shade cast on 
 - README.md
 - smhiPrecipPlot.py
 - SumTrigger.py
+
 

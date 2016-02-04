@@ -88,49 +88,41 @@ def plotetc(x,y,stat,season):
 	print "Correlation coefficients for scores with {0} NAO during {1}".format(stat, season)
 	print "Optimal\tb1\tb2\tAll"
 	print "{0:.3f}\t{1:.3f}\t{2:.3f}\t{3:.3f}\n".format(cc_opt, cc_b1, cc_b2, cc_all)
-	matplotlib.rcParams['axes.grid'] = True
-	matplotlib.rcParams['legend.fancybox'] = True
-	matplotlib.rcParams['figure.figsize'] = 18, 9
-	matplotlib.rcParams['savefig.dpi'] = 300
-	# Set figure name and number for pdf ploting
-	pdfName = '{0}_{1}.pdf'.format(stat, season)
-	pp1 = PdfPages(os.path.join('/Users/andrew/Google Drive/Work/MeltModel/Output/',pdfName))
-	fig1 = plt.figure(1)
-	ax1 = fig1.add_subplot(111)
-	ax1.plot(x, y['Optimal'], 'ok', label='Optimum')
-	ax1.plot(x, y['All'], 'or', label='All')
-	ax1.plot(x, y['b1'], 'og', label='b1')
-	ax1.plot(x, y['b2'], 'ob', label='b2')
-	ax1.set_xlabel("NAO")
-	ax1.set_xlim((-3,3))
-	ax1.set_ylabel("Score")
-	#
-	#ax2 = ax1.twinx()
-	#ax2.plot(x, y['AdjOptimal'], 'ok', label='Adjusted')
-	#ax2.set_ylabel("Adjusted Score")
-	plt.title(stat)
-	plt.legend(loc='upper left')
-	pp1.savefig(bbox_inches='tight')
-	pp1.close()
-	plt.close()
+	# matplotlib.rcParams['axes.grid'] = True
+# 	matplotlib.rcParams['legend.fancybox'] = True
+# 	matplotlib.rcParams['figure.figsize'] = 18, 9
+# 	matplotlib.rcParams['savefig.dpi'] = 300
+# 	# Set figure name and number for pdf ploting
+# 	pdfName = '{0}_{1}.pdf'.format(stat, season)
+# 	pp1 = PdfPages(os.path.join('/Users/andrew/Google Drive/Work/MeltModel/Output/',pdfName))
+# 	fig1 = plt.figure(1)
+# 	ax1 = fig1.add_subplot(111)
+# 	ax1.plot(x, y['Optimal'], 'ok', label='Optimum')
+# 	ax1.plot(x, y['All'], 'or', label='All')
+# 	ax1.plot(x, y['b1'], 'og', label='b1')
+# 	ax1.plot(x, y['b2'], 'ob', label='b2')
+# 	ax1.set_xlabel("NAO")
+# 	ax1.set_xlim((-3,3))
+# 	ax1.set_ylabel("Score")
+# 	#
+# 	#ax2 = ax1.twinx()
+# 	#ax2.plot(x, y['AdjOptimal'], 'ok', label='Adjusted')
+# 	#ax2.set_ylabel("Adjusted Score")
+# 	plt.title(stat)
+# 	plt.legend(loc='upper left')
+# 	pp1.savefig(bbox_inches='tight')
+# 	pp1.close()
+# 	plt.close()
 	return 0
 ### MAIN
 #
-score_path = '/Users/andrew/Google Drive/Work/MeltModel/Output/Performance/Adjusted-Absolute.csv'
-# score_data = np.genfromtxt(score_path, delimiter=',')
-scores = {}
-infile = open(score_path, 'rb')
-line = infile.next()
-headers = line.strip().split(',')
-for row in infile:
-	score_values = []
-	if row != "\n":
-		datain = row.strip().split(',')
-		group = datain[0]
-		for k in range(len(datain) -1):
-			score_values.append(float(datain[k+1]))
-		scores[group] = score_values
-		scores['Year'] = headers[1:]
+score_path = '/Users/andrew/Google Drive/Work/MeltModel/Output/Statistics/ScoreCompare.csv'
+scoreData = import2vector(score_path)
+Optimal = scoreData['Optimal']
+b1 = scoreData['b1']
+b2 = scoreData['b2']
+All = scoreData['All']
+scores = scoreData
 #
 nao_path = '/Users/andrew/Google Drive/Work/MeltModel/InData/nao_monthly.csv'
 nao_data = import2vector(nao_path)
@@ -166,24 +158,33 @@ for stat in stats:
 	plotetc(abl_nao, scores, stat, 'Ablation')
 	plotetc(all_nao, scores, stat, 'Entire')
 
-
-
 pltyear = []
-
-Optimal = [0.018,0.044,0.025,0.019,0.028,0.019,0.030,0.020]
-b1 = [0.018,0.049,0.061,0.039,0.040,0.030,0.032,0.053]
-b2 = [0.039,0.072,0.032,0.021,0.033,0.026,0.060,0.022]
-All = [0.025,0.059,0.044,0.027,0.031,0.023,0.045,0.035]
 
 for yr in years:
 	yr = str(yr) + '/06'
 	pltyear.append(datetime.strptime(str(yr), "%Y/%m"))
 
-
 # Plot NAO
 
 pltnao_path = '/Users/andrew/Google Drive/Work/MeltModel/InData/nao_2004to2014.csv'
 pltnao_data = import2vector(pltnao_path, dateString = '%Y/%m')
+
+averageNAO = np.zeros_like(pltnao_data['NAO'])
+averageNAO[averageNAO == 0] = np.nan
+minNAO = np.zeros_like(pltnao_data['NAO'])
+minNAO[minNAO == 0] = np.nan
+maxNAO = np.zeros_like(pltnao_data['NAO'])
+maxNAO[maxNAO == 0] = np.nan
+ispan = [-5, -4, -3, -2, -1, 0]
+i = 5
+while i < len(pltnao_data['NAO']):
+	part = []
+	for j in ispan:
+		part.append(pltnao_data['NAO'][i + j])
+	averageNAO[i] =  np.mean(part)
+	minNAO[i] = np.min(part)
+	maxNAO[i] = np.max(part)
+	i = i+1
 
 matplotlib.rcParams['axes.grid'] = True
 matplotlib.rcParams['legend.fancybox'] = True
@@ -195,15 +196,20 @@ pp1 = PdfPages(os.path.join('/Users/andrew/Google Drive/Work/MeltModel/Output/',
 fig1 = plt.figure(1)
 ax1 = fig1.add_subplot(111)
 ax1.plot(pltnao_data['DATE'], pltnao_data['NAO'], '-k', label='NAO')
+#ax1.plot(pltnao_data['DATE'], minNAO, '-', color='0.75', label='6 month min NAO')
+ax1.fill_between(pltnao_data['DATE'], minNAO, maxNAO, color='0.85', facecolor='0.85', label='6 month min-max')
+#ax1.plot(pltnao_data['DATE'], maxNAO, '-', color='0.75', label='6 month max NAO')
+ax1.plot(pltnao_data['DATE'], averageNAO, '-', color='0.95', label='NAO 6 month mean')
 ax1.set_ylabel('NAO')
 ax1.grid(b=True, which='major', color='0.75', linestyle='-')
+plt.legend(loc='lower left')
 #ax1.grid(False)
 #
 ax2 = ax1.twinx()
-ax2.plot(pltyear, Optimal, ':ok', label='Optimal')
-ax2.plot(pltyear, b1, ':or', label='b1')
-ax2.plot(pltyear, b2, ':og', label='b2')
-ax2.plot(pltyear, All, ':ob', label='All years')
+ax2.plot(pltyear, Optimal, '-ok', label='Optimal')
+ax2.plot(pltyear, b1, '-or', label='b1')
+ax2.plot(pltyear, b2, '-og', label='b2')
+ax2.plot(pltyear, All, '-ob', label='All years')
 ax2.set_ylabel('Score')
 ax2.grid(False)
 fig1.autofmt_xdate()
@@ -213,7 +219,6 @@ plt.legend(loc='upper left')
 pp1.savefig()
 pp1.close()
 plt.show()
-
 
 # def main():
 	# print command line arguments
