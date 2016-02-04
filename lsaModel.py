@@ -245,10 +245,8 @@ def GetShadeVals(x,y, raster, transf, bandcount, vals, startday):
 			print "GetShadeVals vals error: ", vals[i], intval[0]
 	return vals
 #
-def runModel(stakeData, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb):
-	data = copy.deepcopy(stakeData)
-	stakeNames = data.keys()
-	stakeNames.sort()
+def runModel(inData, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, counter):
+	data = copy.deepcopy(inData)
 	data['DataSets'] = {}
 	for stake in stakeNames:
 		# For ordered headers/keys
@@ -256,7 +254,13 @@ def runModel(stakeData, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, t
 		if 'Org_Bn' in data[stake].keys():
 			data[stake]['Headers'].append('Org_Bn')
 		# Send input data to Degree Day Model object
-		data[stake]['MeltModel'] = DdfCell(data[stake]['Easting'], data[stake]['Northing'], data[stake]['Elevation'], data[stake]['Org_Bw'], jdayBw, data[stake]['Shadevals'], paramDict)
+		if  'Mod' + str(counter - 1) + '_Bw_' + str(jdatelist[0]) in data[stake].keys():
+			BwColumn =  'Mod' + str(counter - 1) + '_Bw_' + str(jdatelist[0])
+		else:
+			BwColumn =  'Org_Bw'
+		# print "Using column ", BwColumn
+		data[stake]['MeltModel'] = 0
+		data[stake]['MeltModel'] = DdfCell(data[stake]['Easting'], data[stake]['Northing'], data[stake]['Elevation'], data[stake][BwColumn], jdayBw, data[stake]['Shadevals'], paramDict)
 		# For each julian day in the "times" vector call the meltInst method for each point object, passing the temperature and the day number.
 		# This is what runs the model at each time step in the temperature time series file
 		for i in range(len(temps)):
@@ -264,28 +268,28 @@ def runModel(stakeData, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, t
 		for day in jdatelist:
 			# Fetch modelled melt and net balance for each julian day specific in settings and create new entry for each
 			loc = data[stake]['MeltModel'].jTimeSeries.index(day)
-			data[stake]['Mod_Bs_' + str(day)] =  round(data[stake]['MeltModel'].meltSumSeries[loc],3)
-			data[stake]['Mod_Bn_' + str(day)] =  round(data[stake]['MeltModel'].BnSeries[loc],3)
-			data[stake]['Headers'].append('Mod_Bs_' + str(day))
-			data[stake]['Headers'].append('Mod_Bn_' + str(day))
+			data[stake]['Mod' + str(counter) + '_Bs_' + str(day)] =  round(data[stake]['MeltModel'].meltSumSeries[loc],3)
+			data[stake]['Mod' + str(counter) + '_Bn_' + str(day)] =  round(data[stake]['MeltModel'].BnSeries[loc],3)
+			data[stake]['Headers'].append('Mod' + str(counter) + '_Bs_' + str(day))
+			data[stake]['Headers'].append('Mod' + str(counter) + '_Bn_' + str(day))
 			# Fetch any truthing data available
 			if str(day) in trudbKeys:
 				try:
 					loc = np.where(trudb[str(day)]['Stake']==stake)[0][0]
 					data[stake]['Org_Bs_' + str(day)] = round(trudb[str(day)]['Bs'][loc],3)
 					data[stake]['Org_Bn_' + str(day)] = round(trudb[str(day)]['Bn'][loc],3)
-					data[stake]['Mod_Bw_' + str(day)] = round((data[stake]['Org_Bn_' + str(day)] +data[stake]['Mod_Bs_' + str(day)]), 3)
+					data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = round((data[stake]['Org_Bn_' + str(day)] + data[stake]['Mod' + str(counter) + '_Bs_' + str(day)]), 3)
 				except:
 					data[stake]['Org_Bs_' + str(day)] = np.nan
 					data[stake]['Org_Bn_' + str(day)] = np.nan
-					data[stake]['Mod_Bw_' + str(day)] = np.nan
+					data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = np.nan
 				data[stake]['Headers'].insert(-2, 'Org_Bs_' + str(day))
 				data[stake]['Headers'].insert(-2, 'Org_Bn_' + str(day))
-				data[stake]['Headers'].insert(-2, 'Mod_Bw_' + str(day))
-				# Add values to lists for calculating R2 later
-				if 'Mod_Bs_' + str(day) not in data['DataSets'].keys():
-					data['DataSets']['Mod_Bs_' + str(day)] = []
-				data['DataSets']['Mod_Bs_' + str(day)].append(data[stake]['Mod_Bs_' + str(day)])
+				data[stake]['Headers'].insert(-2, 'Mod' + str(counter) + '_Bw_' + str(day))
+				# Add values to lists for calculating score later
+				if 'Mod' + str(counter) + '_Bs_' + str(day) not in data['DataSets'].keys():
+					data['DataSets']['Mod' + str(counter) + '_Bs_' + str(day)] = []
+				data['DataSets']['Mod' + str(counter) + '_Bs_' + str(day)].append(data[stake]['Mod' + str(counter) + '_Bs_' + str(day)])
 				if 'Org_Bs_' + str(day) not in data['DataSets'].keys():
 					data['DataSets']['Org_Bs_' + str(day)] = []
 				data['DataSets']['Org_Bs_' + str(day)].append(data[stake]['Org_Bs_' + str(day)])
@@ -348,7 +352,7 @@ def reportWrite(report, outDir):
 			fp.write("%s,%2.4f\n" % (p, report[p]))
 	return 0
 #
-def plotDifElev(outputname,outDir, title, x, y, colour):
+def plotDifElev(outputname,outDir, title, x, y, colour, xlabel, ylabel, plttitle):
 	'''Plot modelled data.
 	To use: plotDifElev(outputname,outDir, title, x, y, colour)'''
 	#
@@ -367,9 +371,9 @@ def plotDifElev(outputname,outDir, title, x, y, colour):
 	matplotlib.pyplot.axes().set_position([0.04, 0.065, 0.8, 0.9])
 	ax1.plot([xmin/1.01,xmax*1.01],[0,0],'-k')
 	plt.axis([xmin/1.01, xmax*1.01, -2, 2])
-	plt.xlabel('Elevation (m.a.s.l.)')
-	plt.ylabel('Measured - Modelled Melt (m w.e.)')
-	plt.title('Measured - Modelled against Elevation')
+	plt.xlabel(xlabel)
+	plt.ylabel(ylabel)
+	plt.title(plttitle)
 	pp1.savefig(bbox_inches='tight')
 	pp1.close()
 	plt.close()
@@ -473,8 +477,12 @@ raster, transf, bandcount = getShadeFile(shadefile)
 def main():
 # Set up list of years from command line arguments
 	if len(sys.argv) > 1:
+		argstart = 1
+		if sys.argv[1] in ['b1', 'b2', 'All']:
+			choice = sys.argv[1]
+			argstart = 2
 		years = []
-		for arg in sys.argv[1:]:
+		for arg in sys.argv[argstart:]:
 			try:
 				years.append(int(arg))
 			except:
@@ -526,7 +534,10 @@ def main():
 		print "jdayBw set to %s" %(jdayBw)
 		#
 		# Set parameters for the melt model
-		choice = 'All_score'
+		if choice not in ['b1', 'b2', 'All']:
+			choice = str(year)
+		else:
+			choice = choice + '_score'
 		derivedParameters = {}
 		derivedParameters['2005'] =           {'ddfSnow':0.0046, 'ddfSi':0.0054, 'ddfFirn':0.0058, 'ddfIce':0.0064, 'lapse':0.0044, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
 		derivedParameters['2006'] =           {'ddfSnow':0.0058, 'ddfSi':0.0056, 'ddfFirn':0.0058, 'ddfIce':0.0064, 'lapse':0.0040, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
@@ -631,21 +642,21 @@ def main():
 			except:
 				pass
 		#
+		# Prepare database for passing into loop and model run
 		stakeNames = stakeData.keys()
 		stakeNames.sort()
+		data = copy.deepcopy(stakeData)
 		#
-		print "stakeData 1\n", stakeData[stakeNames[0]].keys()
-		# HERE THE LOOP COMES
- 		modelDiffScore = 1
- 		while modelDiffScore > 0.001 and counter < 20:
+
+		# HERE COMES THE LOOP
+		previousModBs = []
+		modelDiffScore = 1
+		while modelDiffScore > 0.01 and counter < 20:
 			# RUN MODEL
 			print counter
-			data = runModel(stakeData, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb)
+			data = runModel(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, counter)
 			dataKeys = data.keys()
 			dataKeys.sort()
-			print "\nstakeData 2\n", stakeData[stakeNames[0]].keys()
-			print "\ndata\n", data[stakeNames[0]].keys()
-			print
 			#
 			# REPORT ON MODEL
 			if len(data['DataSets']) > 0:
@@ -664,27 +675,42 @@ def main():
 				setKeys = data['DataSets'].keys()
 				# Order all Mod first, then all Org
 				setKeys.sort()
-				# Plot differences between measured and modelled
+				print setKeys
+				# Plot differences between measured and modelled and test difference to previous run
 				start = 0
 				end = len(setKeys)
 				middle = end/2
 				i = start
 				while i < end/2:
 					modBs = np.array(data['DataSets'][setKeys[i]])
+					if len(previousModBs) == 0:
+						previousModBs = copy.copy(modBs)
+					else:
+						if i == 0:
+							diffModBs = modBs - previousModBs
+							modelDiffScore = np.mean(diffModBs)
+							print "Average difference of modelled ablation to previous estimate: {0:2.3f}".format(modelDiffScore)
+							print diffModBs
+							previousModBs = copy.copy(modBs)
+							pltnmMosDiff = outputname + setKeys[i] + '_moddiff'
+							xlabel = 'Elevation (m.a.s.l.)'
+							ylabel = 'Model improvement (m w.e.)'
+							plttitle = 'Model improvement on previous run against Elevation'
+							plotDifElev(pltnmMosDiff, outDir, setKeys[i], x, diffModBs, 'c',  xlabel, ylabel, plttitle)
 					obsBs = np.array(data['DataSets'][setKeys[middle]])
 					bsDiff = obsBs - modBs
 					pltnmBs = outputname + setKeys[i] + '_measured'
-					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r')
+					xlabel = 'Elevation (m.a.s.l.)'
+					ylabel = 'Measured - Modelled Melt (m w.e.)'
+					plttitle = 'Measured - Modelled against Elevation'
+					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r',  xlabel, ylabel, plttitle)
 					# pltnmBsmm = outputname + setKeys[i] + '_modmeas'
 					# plotDif(pltnmBsmm, outDir, setKeys[i], obsBs, modBs, 'b')
 					i = i+1
 					middle = middle+1
 			counter = counter+1
 
-			#
-		# RECALCULATE WINTER
 
-# Statement
 
 		#parameterCheckWrite(outputDir, year, parUsage)
 #
