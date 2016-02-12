@@ -194,6 +194,10 @@ def getSettings(DataLoc, lastDate):
 		startday = int(settings['ShadeStart'])
 	paramDict = {}
 	try:
+		paramDict['ELA'] = float(settings['ELA'])
+	except:
+		pass
+	try:
 		paramDict['ddfSnow'] = float(settings['Snow'])
 		paramDict['ddfSi'] = float(settings['Si'])
 		paramDict['ddfFirn'] = float(settings['Firn'])
@@ -201,7 +205,6 @@ def getSettings(DataLoc, lastDate):
 		paramDict['lapse'] = float(settings['lapse'])
 		paramDict['elevLapse'] = float(settings['elevLapse'])
 		paramDict['sfe'] = float(settings['sfe'])
-		paramDict['ELA'] = float(settings['ELA'])
 	except:
 		pass
 	return refElev, jdayBw, jdatelist, startday, paramDict
@@ -346,6 +349,7 @@ def reportCreate(data, paramDict):
 	setKeys = data['DataSets'].keys()
 	# Order all Mod first, then all Org
 	setKeys.sort()
+	bestRes = ''
 	start = 0
 	end = len(setKeys)
 	middle = end/2
@@ -361,10 +365,12 @@ def reportCreate(data, paramDict):
 		SSres = (np.nansum(obsBsMinModBs**2))
 		SStot = (np.nansum(obsBsMinMean**2))
 		ResNorm = SSres**0.5
-		report[(setKeys[i]+'_RN')] = ResNorm # Norm of residuals version
+		if i == 0:
+			bestRes = copy.copy(ResNorm)
+		report[(setKeys[i]+'_RN')] = ResNorm # Norm of residuals
 		i = i+1
 		middle = middle+1
-	return report, ResNorm
+	return report, bestRes
 #
 def reportWrite(report, outDir):
 	reportFile = os.path.join(outDir,'Report.txt')
@@ -528,7 +534,7 @@ def snowCalc(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudb
 		counter = counter+1
 	return resNorm
 #
-def  modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, param, refElev, trudbKeys, trudb):
+def  modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, refElev, trudbKeys, trudb, param,**kwargs):
 	paramDict = {}
 	paramDict['ddfSnow'] = param[0]
 	paramDict['ddfSi'] = param[1]
@@ -537,7 +543,10 @@ def  modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, param, re
 	paramDict['lapse'] = param[4]
 	paramDict['elevLapse'] = param[5]
 	paramDict['sfe'] = param[6]
-	paramDict['ELA'] = param[7]
+	if 'ELA' in kwargs and len(param) == 7:
+		paramDict['ELA'] = float(kwargs['ELA'])
+	else:
+		paramDict['ELA'] = param[7]
 	paramDict['refElev'] = refElev
 	data = runModel(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, 0)
 	report, resNorm = reportCreate(data, paramDict)
@@ -569,6 +578,8 @@ def  modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, param, re
 		# jdayBw=115
 		# ExportDate=236,256
 		# ShadeStart=100
+		# ELA may be left out and the programme will use the simplex to guess at a best value (not an estimate of ELA per se)
+		# ELA=1500
 		# These parameter settings must ALL be present or those present will be ignored
 		# Snow=0.0046
 		# Si=0.0054
@@ -577,7 +588,6 @@ def  modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, param, re
 		# lapse=0.0044
 		# elevLapse=950
 		# sfe=1.5
-		# ELA=1500
 	# weatheryyyy.csv:
 		# Date,Temp
 		# 2010-01-25,-8.3
@@ -623,6 +633,7 @@ def main():
 #
 # Run main function
 	for year in years:
+		print year
 		strYear = str(year)
 		dataLoc = '../InData/' + strYear
 		# Temperature data. Following two lines are example of input format:
@@ -725,14 +736,22 @@ def main():
 		best = 9999
 		#
 
-		if paramDict.keys() > 0 and paramChoice == 'p':
+		if len(paramDict.keys())> 2 and paramChoice == 'p':
 			resNorm = snowCalc(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, outputDir, outputname)
 		else:
-			x0 = [0.0050, 0.0050, 0.0050, 0.0050, 0.0050, 1000, 1.0, 1500]
-			def rosen(x):
-				resNorm = modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, x, refElev, trudbKeys, trudb)
+			if len(paramDict.keys()) == 2:
+				x0 = [0.0050, 0.0050, 0.0050, 0.0050, 0.0050, 1000, 1.0]
+			else:
+				x0 = [0.0050, 0.0050, 0.0050, 0.0050, 0.0050, 1000, 1.0, 1500]
+
+			def trigger(x):
+				if len(x0) == 7:
+					resNorm = modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, refElev, trudbKeys, trudb, x, ELA=paramDict['ELA'])
+				else:
+					resNorm = modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, refElev, trudbKeys, trudb, x)
 				return resNorm
-			res = minimize(rosen, x0, method='nelder-mead', options={'xtol': 1e-8, 'disp': True})
+
+			res = minimize(trigger, x0, method='nelder-mead', options={'xtol': 1e-8, 'disp': True})
 			print (res.x)
 			paramDict['ddfSnow'] = res.x[0]
 			paramDict['ddfSi'] = res.x[1]
@@ -741,9 +760,13 @@ def main():
 			paramDict['lapse'] = res.x[4]
 			paramDict['elevLapse'] = res.x[5]
 			paramDict['sfe'] = res.x[6]
-			paramDict['ELA'] = res.x[7]
+			if  'ELA' not in paramDict.keys():
+				paramDict['ELA'] = res.x[7]
+
 			resNorm = snowCalc(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, outputDir, outputname)
-		print "Final score: {:2.4f}".format(resNorm)
+		for key, value in paramDict.iteritems():
+			print "{} = {}".format(key, value)
+		print "\n{} final score: {:2.4f}\n".format(year, resNorm)
 
 #
 if __name__ == "__main__":
