@@ -17,33 +17,20 @@ The shading is a hillshade based adjusted summing the "daylight" hours shade at 
 
 ## Files
 
-### ModifiedDegreeDay.py
-
-__DEAD__The main model. Requires spatialfiles.py and standard.py from my other repo
-
-### ParameterAnalysis.py
-
-_DEAD__Used only for assessment of model parameters
-
-### Shade.py
-
-Creates a geotiff file containing multiple layers, each layer the shade cast on glacier for each julian day
-
-### lsa.py
-
-The melt model script. Primary usage is for deriving optimum and best scoring parameter vales
-
-### lsaModel.py
-
-Version of lsa.py to be main model with iterative recalculation of snow depth
-
-### Other files
-
-- ddf_model.py
-- DiffTrigger.py
-- KrigTrigger.py
-- README.md
-- smhiPrecipPlot.py
-- SumTrigger.py
-
-
+1.	Comp2Sets.py
+2.	DiffTrigger.py
+3.	GetBest.py 
+4.	KrigTrigger.py
+5.	lsa.py
+6.	lsaModel.py
+7.	LSASO.py
+    - Main Model file. Runs simplex algorithm to find best parameter combination unless parameters provided in settings and called with "p".  Iteratively calculates unmeasured snow.
+8.	nao.py
+9.	opparan.py
+    - Analyse data from optimisation runs on all years, then runs using averages for parameters derived from all years, b1 years and b2 years
+10.	README.md
+11.	Shade.py
+  -  Creates a geotiff file containing multiple layers, each layer the shade cast on glacier for each julian day
+12.	smhiPrecipPlot.py
+13.	smhisort.sh
+14.	SumTrigger.py
