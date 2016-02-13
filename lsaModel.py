@@ -75,7 +75,7 @@ class DdfCell:
 		'''This offsets the temperature at the weather station by a spatially
 		derived factor.'''
 		# self.tempDiff is the amount by which the temperature registered at the AWS will be altered
-		# Elevation difference to SMHI station.
+		# Elevation difference to AWS.
 		self.elevDiff = self.elevation - self.refElev # Fix station elevation
 		self.vlr = 1 + self.elevDiff/(self.elevLapse) # Try to capture effect of moisture entering air mass.
 		self.tempDiff = self.elevDiff * (self.lapse * self.vlr) # Elevation difference determines temperature difference
@@ -157,8 +157,6 @@ def getSettings(DataLoc, lastDate):
 	ExportDate=236,256
 	ShadeStart=100
 	'''
-	# Called by:
-	#
 	settingsFile = os.path.join(DataLoc, 'settings.txt')
 	settings = {}
 	InFile = open(settingsFile,'rb')
@@ -251,13 +249,15 @@ def runModel(inData, stakeNames, temps, times, jdatelist, jdayBw, paramDict, tru
 	for stake in stakeNames:
 		# For ordered headers/keys
 		data[stake]['Headers'] = ['MeltModel', 'Shadevals', 'Easting', 'Northing', 'Elevation', 'Org_Bw']
+		if 'Org_Bs' in data[stake].keys():
+			data[stake]['Headers'].append('Org_Bs')
 		if 'Org_Bn' in data[stake].keys():
 			data[stake]['Headers'].append('Org_Bn')
 		# Send input data to Degree Day Model object
-		if  'Mod' + str(counter - 1) + '_Bw_' + str(jdatelist[0]) in data[stake].keys():
-			BwColumn =  'Mod' + str(counter - 1) + '_Bw_' + str(jdatelist[0])
+		if	'Mod' + str(counter - 1) + '_Bw_' + str(jdatelist[0]) in data[stake].keys():
+			BwColumn =	'Mod' + str(counter - 1) + '_Bw_' + str(jdatelist[0])
 		else:
-			BwColumn =  'Org_Bw'
+			BwColumn =	'Org_Bw'
 		# print "Using column ", BwColumn
 		data[stake]['MeltModel'] = 0
 		data[stake]['MeltModel'] = DdfCell(data[stake]['Easting'], data[stake]['Northing'], data[stake]['Elevation'], data[stake][BwColumn], jdayBw, data[stake]['Shadevals'], paramDict)
@@ -268,8 +268,16 @@ def runModel(inData, stakeNames, temps, times, jdatelist, jdayBw, paramDict, tru
 		for day in jdatelist:
 			# Fetch modelled melt and net balance for each julian day specific in settings and create new entry for each
 			loc = data[stake]['MeltModel'].jTimeSeries.index(day)
-			data[stake]['Mod' + str(counter) + '_Bs_' + str(day)] =  round(data[stake]['MeltModel'].meltSumSeries[loc],3)
-			data[stake]['Mod' + str(counter) + '_Bn_' + str(day)] =  round(data[stake]['MeltModel'].BnSeries[loc],3)
+			if 'Org_Bn_' + str(day) in data[stake].keys():
+				orgBnColumn = 'Org_Bn_' + str(day)
+			else:
+				orgBnColumn = 'Org_Bn'
+			data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = round((data[stake][orgBnColumn] + data[stake]['MeltModel'].meltSumSeries[loc]), 3)
+			data[stake]['Diff' + str(counter) + '_Bw_' + str(day)] = round((data[stake][orgBnColumn] + data[stake]['MeltModel'].meltSumSeries[loc] - data[stake]['Org_Bw']), 3)
+			data[stake]['Mod' + str(counter) + '_Bs_' + str(day)] =	 round(data[stake]['MeltModel'].meltSumSeries[loc],3)
+			data[stake]['Mod' + str(counter) + '_Bn_' + str(day)] =	 round(data[stake]['MeltModel'].BnSeries[loc],3)
+			data[stake]['Headers'].append('Mod' + str(counter) + '_Bw_' + str(day))
+			data[stake]['Headers'].append('Diff' + str(counter) + '_Bw_' + str(day))
 			data[stake]['Headers'].append('Mod' + str(counter) + '_Bs_' + str(day))
 			data[stake]['Headers'].append('Mod' + str(counter) + '_Bn_' + str(day))
 			# Fetch any truthing data available
@@ -278,14 +286,13 @@ def runModel(inData, stakeNames, temps, times, jdatelist, jdayBw, paramDict, tru
 					loc = np.where(trudb[str(day)]['Stake']==stake)[0][0]
 					data[stake]['Org_Bs_' + str(day)] = round(trudb[str(day)]['Bs'][loc],3)
 					data[stake]['Org_Bn_' + str(day)] = round(trudb[str(day)]['Bn'][loc],3)
-					data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = round((data[stake]['Org_Bn_' + str(day)] + data[stake]['Mod' + str(counter) + '_Bs_' + str(day)]), 3)
+					# data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = round((data[stake]['Org_Bn_' + str(day)] + data[stake]['Mod' + str(counter) + '_Bs_' + str(day)]), 3)
 				except:
 					data[stake]['Org_Bs_' + str(day)] = np.nan
 					data[stake]['Org_Bn_' + str(day)] = np.nan
-					data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = np.nan
-				data[stake]['Headers'].insert(-2, 'Org_Bs_' + str(day))
-				data[stake]['Headers'].insert(-2, 'Org_Bn_' + str(day))
-				data[stake]['Headers'].insert(-2, 'Mod' + str(counter) + '_Bw_' + str(day))
+					# data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = np.nan
+				data[stake]['Headers'].insert(-4, 'Org_Bs_' + str(day))
+				data[stake]['Headers'].insert(-4, 'Org_Bn_' + str(day))
 				# Add values to lists for calculating score later
 				if 'Mod' + str(counter) + '_Bs_' + str(day) not in data['DataSets'].keys():
 					data['DataSets']['Mod' + str(counter) + '_Bs_' + str(day)] = []
@@ -293,6 +300,7 @@ def runModel(inData, stakeNames, temps, times, jdatelist, jdayBw, paramDict, tru
 				if 'Org_Bs_' + str(day) not in data['DataSets'].keys():
 					data['DataSets']['Org_Bs_' + str(day)] = []
 				data['DataSets']['Org_Bs_' + str(day)].append(data[stake]['Org_Bs_' + str(day)])
+
 	return data
 #
 def meltDataWrite(points, outDir):
@@ -343,7 +351,7 @@ def reportCreate(data, paramDict):
 		report[(setKeys[i]+'_RN')] = ResNorm # Norm of residuals version
 		i = i+1
 		middle = middle+1
-	return report
+	return report, ResNorm
 #
 def reportWrite(report, outDir):
 	reportFile = os.path.join(outDir,'Report.txt')
@@ -431,7 +439,94 @@ def usageUpdate(parUsage, paramDict, BsScore):
 	parUsage['BsScore'].append(BsScore)
 	return parUsage
 #
-
+def parameterCheckWrite(outputDir, year, parUsage):
+	paramFile = os.path.join(outputDir,'UsedParameters.csv')
+	keys = ['BsScore', 'ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse', 'elevLapse', 'sfe', 'ELA', 'refElev']
+	with open (paramFile, 'w') as fp:
+		writer = csv.writer(fp, delimiter = ",")
+		writer.writerow(keys)
+		writer.writerows(zip(*[parUsage[key] for key in keys]))
+	return 0
+#
+def snowCalc(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, outputDir, outputname, best, iterationcount=0):
+	# Settings and counters for multiple parameter values
+	counter = 0
+	#
+	previousModBs = []
+	modelDiffScore = 1
+	while modelDiffScore > 0.01 and counter < 20:
+		# RUN MODEL
+		data = runModel(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, counter)
+		dataKeys = data.keys()
+		dataKeys.sort()
+		#
+		# REPORT ON MODEL
+		if len(data['DataSets']) > 0:
+			report, resNorm = reportCreate(data, paramDict)
+		if counter == 0:
+			retResNorm = copy.copy(resNorm)
+		if resNorm < best:
+			print "Snow back calculation run {0:d}".format(counter)
+			print "Score: {0:2.3f}\n".format(resNorm)
+			if iterationcount > 0:
+				writeDir = os.path.join(outputDir, str(iterationcount))
+				if not os.path.exists(writeDir):
+						os.makedirs(writeDir)
+			else:
+				writeDir = outputDir
+			if counter == 0:
+				best = copy.copy(resNorm)
+			# Output model data to file
+			pfnm = str(counter)
+			outDir = makeDir(writeDir, pfnm)
+			meltDataWrite(data, outDir)
+			#	Write report to text file
+			reportWrite(report, outDir)
+			#	Plot model results
+			x = []
+			for stake in stakeNames:
+				x.append(data[stake]['Elevation'])
+			if len(data['DataSets']) > 0:
+				setKeys = data['DataSets'].keys()
+				# Order all Mod first, then all Org
+				setKeys.sort()
+				# Plot differences between measured and modelled and test difference to previous run
+				start = 0
+				end = len(setKeys)
+				middle = end/2
+				i = start
+				while i < end/2:
+					modBs = np.array(data['DataSets'][setKeys[i]])
+					if len(previousModBs) == 0:
+						previousModBs = copy.copy(modBs)
+					else:
+						if i == 0:
+							diffModBs = modBs - previousModBs
+							modelDiffScore = np.mean(diffModBs)
+							# print "Average difference of modelled ablation to previous estimate: {0:2.3f}".format(modelDiffScore)
+							# print diffModBs
+							previousModBs = copy.copy(modBs)
+							pltnmMosDiff = outputname + setKeys[i] + '_moddiff'
+							xlabel = 'Elevation (m.a.s.l.)'
+							ylabel = 'Model improvement (m w.e.)'
+							plttitle = 'Model improvement on previous run against Elevation'
+							plotDifElev(pltnmMosDiff, outDir, setKeys[i], x, diffModBs, 'c',xlabel, ylabel, plttitle)
+					obsBs = np.array(data['DataSets'][setKeys[middle]])
+					bsDiff = obsBs - modBs
+					pltnmBs = outputname + setKeys[i] + '_measured'
+					xlabel = 'Elevation (m.a.s.l.)'
+					ylabel = 'Measured - Modelled Melt (m w.e.)'
+					plttitle = 'Measured - Modelled against Elevation'
+					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r',xlabel, ylabel, plttitle)
+					# pltnmBsmm = outputname + setKeys[i] + '_modmeas'
+					# plotDif(pltnmBsmm, outDir, setKeys[i], obsBs, modBs, 'b')
+					i = i+1
+					middle = middle+1
+		else:
+			break
+		counter = counter+1
+	return best, retResNorm
+#
 #
 ################################### MAIN ###################################
 #
@@ -448,7 +543,7 @@ def usageUpdate(parUsage, paramDict, BsScore):
 # /Indata/yyyy/StakeReadings.csv
 # /Indata/settings.txt
 # /Output/
-# /Output/Shades/SG_shade.tif 		This file is here as it is the output of another script
+# /Output/Shades/SG_shade.tif		This file is here as it is the output of another script
 # /Output/yyyy/		These are created by this script as needed
 # /Scripts/
 #
@@ -476,9 +571,10 @@ raster, transf, bandcount = getShadeFile(shadefile)
 #
 def main():
 # Set up list of years from command line arguments
+	choice = ''
 	if len(sys.argv) > 1:
 		argstart = 1
-		if sys.argv[1] in ['b1', 'b2', 'All']:
+		if sys.argv[1] in ['b1', 'b2', 'All', 'y2005', 'y2006', 'y2007', 'y2008', 'y2009', 'y2010', 'y2011', 'y2013']:
 			choice = sys.argv[1]
 			argstart = 2
 		years = []
@@ -533,53 +629,6 @@ def main():
 		print "refElev set to %s" %(refElev)
 		print "jdayBw set to %s" %(jdayBw)
 		#
-		# Set parameters for the melt model
-		if choice not in ['b1', 'b2', 'All']:
-			choice = str(year)
-		else:
-			choice = choice + '_score'
-		derivedParameters = {}
-		derivedParameters['2005'] =           {'ddfSnow':0.0046, 'ddfSi':0.0054, 'ddfFirn':0.0058, 'ddfIce':0.0064, 'lapse':0.0044, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['2006'] =           {'ddfSnow':0.0058, 'ddfSi':0.0056, 'ddfFirn':0.0058, 'ddfIce':0.0064, 'lapse':0.0040, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['2007'] =           {'ddfSnow':0.0036, 'ddfSi':0.0044, 'ddfFirn':0.0040, 'ddfIce':0.0040, 'lapse':0.0052, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['2008'] =           {'ddfSnow':0.0036, 'ddfSi':0.0044, 'ddfFirn':0.0058, 'ddfIce':0.0040, 'lapse':0.0044, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['2009'] =           {'ddfSnow':0.0036, 'ddfSi':0.0056, 'ddfFirn':0.0058, 'ddfIce':0.0064, 'lapse':0.0052, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['2010'] =           {'ddfSnow':0.0036, 'ddfSi':0.0044, 'ddfFirn':0.0058, 'ddfIce':0.0048, 'lapse':0.0040, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['2011'] =           {'ddfSnow':0.0058, 'ddfSi':0.0056, 'ddfFirn':0.0058, 'ddfIce':0.0060, 'lapse':0.0040, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['2013'] =           {'ddfSnow':0.0036, 'ddfSi':0.0044, 'ddfFirn':0.0058, 'ddfIce':0.0060, 'lapse':0.0068, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['All_score'] =   {'ddfSnow':0.0042, 'ddfSi':0.0056, 'ddfFirn':0.0044, 'ddfIce':0.0056, 'lapse':0.0048, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['All_weight'] = {'ddfSnow':0.0047, 'ddfSi':0.0050, 'ddfFirn':0.0049, 'ddfIce':0.0052, 'lapse':0.0058, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['b1_score'] =    {'ddfSnow':0.0058, 'ddfSi':0.0056, 'ddfFirn':0.0054, 'ddfIce':0.0060, 'lapse':0.0040, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['b1_weight'] =  {'ddfSnow':0.0047, 'ddfSi':0.0050, 'ddfFirn':0.0049, 'ddfIce':0.0052, 'lapse':0.0058, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['b2_score'] =    {'ddfSnow':0.0038, 'ddfSi':0.0052, 'ddfFirn':0.0042, 'ddfIce':0.0056, 'lapse':0.0056, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		derivedParameters['b2_weight'] =  {'ddfSnow':0.0047, 'ddfSi':0.0050, 'ddfFirn':0.0049, 'ddfIce':0.0052, 'lapse':0.0058, 'elevLapse':(2100 - 1150), 'sfe':1.5, 'ELA':1500}
-		try:
-			paramDict = {}
-			paramDict['ddfSnow'] =  derivedParameters[choice]['ddfSnow']
-			paramDict['ddfSi'] = derivedParameters[choice]['ddfSi']
-			paramDict['ddfFirn'] = derivedParameters[choice]['ddfFirn']
-			paramDict['ddfIce'] = derivedParameters[choice]['ddfIce']
-			paramDict['lapse'] = derivedParameters[choice]['lapse']
-			paramDict['elevLapse'] = derivedParameters[choice]['elevLapse']
-			paramDict['sfe'] = derivedParameters[choice]['sfe']
-			paramDict['ELA'] = derivedParameters[choice]['ELA']
-			paramDict['refElev'] = refElev
-		except:
-			choice = 'All_score'
-			paramDict = {}
-			paramDict['ddfSnow'] =  derivedParameters[choice]['ddfSnow']
-			paramDict['ddfSi'] = derivedParameters[choice]['ddfSi']
-			paramDict['ddfFirn'] = derivedParameters[choice]['ddfFirn']
-			paramDict['ddfIce'] = derivedParameters[choice]['ddfIce']
-			paramDict['lapse'] = derivedParameters[choice]['lapse']
-			paramDict['elevLapse'] = derivedParameters[choice]['elevLapse']
-			paramDict['sfe'] = derivedParameters[choice]['sfe']
-			paramDict['ELA'] = derivedParameters[choice]['ELA']
-			paramDict['refElev'] = refElev
-		#
-		# Settings and counters for multiple parameter values
-		counter = 0
-		#
 		# Directory for output
 		outputDir = os.path.join('../Output/', strYear)
 		if not os.path.exists(outputDir):
@@ -598,7 +647,7 @@ def main():
 					print "%s does not match date given in settings file: %s" % (file, jdatelist)
 				else:
 					print file
-				trudb[file.split('.')[0]] = import2vector(os.path.join(truthDir,file))
+				trudb[file.split('.')[0]] = import2vector(os.path.join(truthDir,file),	importError = 'no')
 			trudbKeys = trudb.keys()
 			trudbKeys.sort()
 		except:
@@ -646,73 +695,88 @@ def main():
 		stakeNames = stakeData.keys()
 		stakeNames.sort()
 		data = copy.deepcopy(stakeData)
+		best = 9999
 		#
+		# Set parameters for the melt model
+		if choice in ['b1', 'b2', 'All']:
+			choice = choice + '_score'
+		elif choice in ['y2005', 'y2006', 'y2007', 'y2008', 'y2009', 'y2010', 'y2011', 'y2013']:
+			choice = choice.strip('y')
+		print "Choice of parameters: {}".format(choice)
+		derivedParameters = {}
+		derivedParameters['2005'] =			{'ddfSnow':0.0046, 'ddfSi':0.0054, 'ddfFirn':0.0058, 'ddfIce':0.0064, 'lapse':0.0044, 'elevLapse':(700), 'sfe':1.4, 'ELA':1500}
+		derivedParameters['2006'] =			{'ddfSnow':0.0058, 'ddfSi':0.0056, 'ddfFirn':0.0058, 'ddfIce':0.0064, 'lapse':0.0040, 'elevLapse':(800), 'sfe':1.1, 'ELA':1500}
+		derivedParameters['2007'] =			{'ddfSnow':0.0036, 'ddfSi':0.0044, 'ddfFirn':0.0040, 'ddfIce':0.0040, 'lapse':0.0052, 'elevLapse':(800), 'sfe':1.3, 'ELA':1500}
+		derivedParameters['2008'] =			{'ddfSnow':0.0036, 'ddfSi':0.0044, 'ddfFirn':0.0058, 'ddfIce':0.0040, 'lapse':0.0044, 'elevLapse':(900), 'sfe':1.5, 'ELA':1500}
+		derivedParameters['2009'] =			{'ddfSnow':0.0036, 'ddfSi':0.0056, 'ddfFirn':0.0058, 'ddfIce':0.0064, 'lapse':0.0052, 'elevLapse':(800), 'sfe':1.6, 'ELA':1500}
+		derivedParameters['2010'] =			{'ddfSnow':0.0036, 'ddfSi':0.0044, 'ddfFirn':0.0058, 'ddfIce':0.0048, 'lapse':0.0040, 'elevLapse':(600), 'sfe':1.2, 'ELA':1500}
+		derivedParameters['2011'] =			{'ddfSnow':0.0058, 'ddfSi':0.0056, 'ddfFirn':0.0058, 'ddfIce':0.0060, 'lapse':0.0040, 'elevLapse':(900), 'sfe':1.1, 'ELA':1500}
+		derivedParameters['2013'] =			{'ddfSnow':0.0036, 'ddfSi':0.0044, 'ddfFirn':0.0058, 'ddfIce':0.0060, 'lapse':0.0068, 'elevLapse':(800), 'sfe':1.3, 'ELA':1500}
+		derivedParameters['All_score'] = {'ddfSnow':0.0042, 'ddfSi':0.0056, 'ddfFirn':0.0044, 'ddfIce':0.0056, 'lapse':0.0048, 'elevLapse':(800), 'sfe':1.4, 'ELA':1500}
+		derivedParameters['All_weight'] = {'ddfSnow':0.0047, 'ddfSi':0.0050, 'ddfFirn':0.0049, 'ddfIce':0.0052, 'lapse':0.0058, 'elevLapse':(800), 'sfe':1.4, 'ELA':1500}
+		derivedParameters['b1_score'] =	 {'ddfSnow':0.0058, 'ddfSi':0.0056, 'ddfFirn':0.0054, 'ddfIce':0.0060, 'lapse':0.0040, 'elevLapse':(800), 'sfe':1.4, 'ELA':1500}
+		derivedParameters['b1_weight'] ={'ddfSnow':0.0047, 'ddfSi':0.0050, 'ddfFirn':0.0049, 'ddfIce':0.0052, 'lapse':0.0058, 'elevLapse':(800), 'sfe':1.4, 'ELA':1500}
+		derivedParameters['b2_score'] =	 {'ddfSnow':0.0038, 'ddfSi':0.0052, 'ddfFirn':0.0042, 'ddfIce':0.0056, 'lapse':0.0056, 'elevLapse':(750), 'sfe':1.4, 'ELA':1500}
+		derivedParameters['b2_weight'] ={'ddfSnow':0.0047, 'ddfSi':0.0050, 'ddfFirn':0.0049, 'ddfIce':0.0052, 'lapse':0.0058, 'elevLapse':(750), 'sfe':1.4, 'ELA':1500}
+		#
+		try:
+			paramDict = {}
+			paramDict['ddfSnow'] =	derivedParameters[choice]['ddfSnow']
+			paramDict['ddfSi'] = derivedParameters[choice]['ddfSi']
+			paramDict['ddfFirn'] = derivedParameters[choice]['ddfFirn']
+			paramDict['ddfIce'] = derivedParameters[choice]['ddfIce']
+			paramDict['lapse'] = derivedParameters[choice]['lapse']
+			paramDict['elevLapse'] = derivedParameters[choice]['elevLapse']
+			paramDict['sfe'] = derivedParameters[choice]['sfe']
+			paramDict['ELA'] = derivedParameters[choice]['ELA']
+			paramDict['refElev'] = refElev
+			best, resNorm = snowCalc(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, outputDir, outputname, best)
+		except:
+			print "Running {0:d} on all paramater combinations\n".format(year)
+			ddfSnow = range(36,59,4)
+			ddfSnow = np.array(ddfSnow)*0.0001
+			ddfSnow = list(ddfSnow)
+			ddfSi = range(48,61,4)
+			ddfSi = np.array(ddfSi)*0.0001
+			ddfSi = list(ddfSi)
+			ddfFirn = range(36,46,4)
+			ddfFirn = np.array(ddfFirn)*0.0001
+			ddfFirn = list(ddfFirn)
+			ddfIce = range(40,65,4)
+			ddfIce = np.array(ddfIce)*0.0001
+			ddfIce = list(ddfIce)
+			lapse = range(36,61,4)
+			lapse = np.array(lapse)*0.0001
+			lapse = list(lapse)
+			elevLapse = range(100,1501,100) # Elevation dependant lapse rate
+			sfe = range(8,15) # Shading factor exponent (adjusts the shading value at each point)
+			sfe = np.array(sfe)*0.1
+			sfe = list(sfe)
+			ELA = [1500] # Equilibrium line, for firn or ice under snow
+			parUsage = {'BsScore':[], 'ddfSnow':[], 'ddfSi':[], 'ddfFirn':[], 'ddfIce':[], 'lapse':[], 'elevLapse':[], 'sfe':[], 'ELA':[], 'refElev':[]}
+			iterationcount = len(ddfSnow)*len(ddfSi)*len(ddfFirn)*len(ddfIce)*len(lapse)*len(elevLapse)*len(sfe)*len(ELA)
+			print "Total number of runs: %s" % (iterationcount)
+			for it1, it2, it3, it4, it5, it6, it7, it8 in itertools.product(ddfSnow, ddfSi, ddfFirn, ddfIce, lapse, elevLapse, sfe, ELA):
+				paramDict = {}
+				paramDict['ddfSnow'] = it1
+				paramDict['ddfSi'] =it2
+				paramDict['ddfFirn'] = it3
+				paramDict['ddfIce'] = it4
+				paramDict['lapse'] = it5
+				paramDict['elevLapse'] = it6
+				paramDict['sfe'] = it7
+				paramDict['ELA'] = it8
+				paramDict['refElev'] = refElev
+				check = best
+				best, resNorm = snowCalc(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, outputDir, outputname, best, iterationcount)
+				parUsage = usageUpdate(parUsage, paramDict, resNorm)
+				if best < check:
+					print "{0:d} improved score".format(iterationcount)
+				iterationcount = iterationcount - 1
+				if iterationcount % 100 == 0:
+					print iterationcount
+			parameterCheckWrite(outputDir, year, parUsage)
 
-		# HERE COMES THE LOOP
-		previousModBs = []
-		modelDiffScore = 1
-		while modelDiffScore > 0.01 and counter < 20:
-			# RUN MODEL
-			print counter
-			data = runModel(data, stakeNames, temps, times, jdatelist, jdayBw, paramDict, trudbKeys, trudb, counter)
-			dataKeys = data.keys()
-			dataKeys.sort()
-			#
-			# REPORT ON MODEL
-			if len(data['DataSets']) > 0:
-				report = reportCreate(data, paramDict)
-			# Output model data to file
-			flnm = str(counter)
-			outDir = makeDir(outputDir, flnm)
-			meltDataWrite(data, outDir)
-			# 	Write report to text file
-			reportWrite(report, outDir)
-			# 	Plot model results
-			x = []
-			for stake in stakeNames:
-				x.append(data[stake]['Elevation'])
-			if len(data['DataSets']) > 0:
-				setKeys = data['DataSets'].keys()
-				# Order all Mod first, then all Org
-				setKeys.sort()
-				print setKeys
-				# Plot differences between measured and modelled and test difference to previous run
-				start = 0
-				end = len(setKeys)
-				middle = end/2
-				i = start
-				while i < end/2:
-					modBs = np.array(data['DataSets'][setKeys[i]])
-					if len(previousModBs) == 0:
-						previousModBs = copy.copy(modBs)
-					else:
-						if i == 0:
-							diffModBs = modBs - previousModBs
-							modelDiffScore = np.mean(diffModBs)
-							print "Average difference of modelled ablation to previous estimate: {0:2.3f}".format(modelDiffScore)
-							print diffModBs
-							previousModBs = copy.copy(modBs)
-							pltnmMosDiff = outputname + setKeys[i] + '_moddiff'
-							xlabel = 'Elevation (m.a.s.l.)'
-							ylabel = 'Model improvement (m w.e.)'
-							plttitle = 'Model improvement on previous run against Elevation'
-							plotDifElev(pltnmMosDiff, outDir, setKeys[i], x, diffModBs, 'c',  xlabel, ylabel, plttitle)
-					obsBs = np.array(data['DataSets'][setKeys[middle]])
-					bsDiff = obsBs - modBs
-					pltnmBs = outputname + setKeys[i] + '_measured'
-					xlabel = 'Elevation (m.a.s.l.)'
-					ylabel = 'Measured - Modelled Melt (m w.e.)'
-					plttitle = 'Measured - Modelled against Elevation'
-					plotDifElev(pltnmBs, outDir, setKeys[i], x, bsDiff, 'r',  xlabel, ylabel, plttitle)
-					# pltnmBsmm = outputname + setKeys[i] + '_modmeas'
-					# plotDif(pltnmBsmm, outDir, setKeys[i], obsBs, modBs, 'b')
-					i = i+1
-					middle = middle+1
-			counter = counter+1
-
-
-
-		#parameterCheckWrite(outputDir, year, parUsage)
 #
 if __name__ == "__main__":
 	main()
