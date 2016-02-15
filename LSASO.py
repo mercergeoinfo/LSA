@@ -552,50 +552,6 @@ def  modelOptimiser(data, stakeNames, temps, times, jdatelist, jdayBw, refElev, 
 	report, resNorm = reportCreate(data, paramDict)
 	return resNorm
 #
-#
-################################### MAIN ###################################
-#
-# Try calling with e.g "echo 2005 2006 2007 2008 2009 2010 2011 2013 2014 | xargs ./lsa.py"
-#
-# To run this you will need the following:
-# A shading file where each pixel represents shading on the glacier at each julian day to be modelled
-# A temperature data file for each julian day to be modelled
-# A stake data file containing winter balance values and coordinates for each stake
-# A settings file
-# The directory structure I have used here is as follows ('yyyy' should be replaced by the year):
-# /InData/yyyy
-# /Indata/yyyy/weatheryyyy.csv
-# /Indata/yyyy/StakeReadings.csv
-# /Indata/settings.txt
-# /Output/
-# /Output/Shades/SG_shade.tif		This file is here as it is the output of another script
-# /Output/yyyy/		These are created by this script as needed
-# /Scripts/
-#
-# Format examples:
-	# settings.txt (note that if 'ExportDate' omitted then all dates between bW and final temperature reading exported):
-		# Elevation=1150
-		# jdayBw=115
-		# ExportDate=236,256
-		# ShadeStart=100
-		# ELA may be left out and the programme will use the simplex to guess at a best value (not an estimate of ELA per se)
-		# ELA=1500
-		# These parameter settings must ALL be present or those present will be ignored
-		# Snow=0.0046
-		# Si=0.0054
-		# Firn=0.0058
-		# Ice=:0.0064
-		# lapse=0.0044
-		# elevLapse=950
-		# sfe=1.5
-	# weatheryyyy.csv:
-		# Date,Temp
-		# 2010-01-25,-8.3
-	# StakeDatayyyy.csv:
-		# Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
-		# 04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
-#
-#
 # Get shading data
 # Location of file containing a multiband raster, each band represents the shading on one day. 1 = no shade, 0 = really quite dark
 shadefile = '../InData/Shades/SG_shade.tif'
@@ -605,6 +561,54 @@ raster, transf, bandcount = getShadeFile(shadefile)
 #
 #
 def main():
+	'''
+	Start script with e.g.
+	$ python LSASO.py 2005
+	$ python LSASO.py p 2005
+	$ python LSASO.py 2005 2006 2007
+	$ python LSASO.py p 2005 2006 2007
+	where 'p' indicates using parameters  values for melt rates specified in settings.txt file for each year
+
+	To run this you will need the following:
+	A shading file where each pixel represents shading on the glacier at each julian day to be modelled
+	A temperature data file for each julian day to be modelled
+	A stake data file containing winter balance values and coordinates for each stake
+	A settings file
+	The directory structure I have used here is as follows ('yyyy' should be replaced by the year):
+	/InData/yyyy
+	/InData/yyyy/weatheryyyy.csv
+	/InData/yyyy/StakeReadings.csv
+	/InData/settings.txt
+	/InData/Shades/SG_shade.tif		This file is here as it is the output of another script
+	/Output/
+	/Output/yyyy/		These are created by this script as needed
+	/Scripts/		Run the script from here.
+
+	Format examples:
+		settings.txt (note that if 'ExportDate' omitted then all dates between bW and final temperature reading exported):
+			Elevation=1150
+			jdayBw=115
+			ExportDate=236,256
+			ShadeStart=100
+			ELA may be left out and the programme will use the optimisation algorithm to guess at a best value (not an estimate of ELA per se)
+			ELA=1500
+			These parameter settings must ALL be present or those present will be ignored
+			Snow=0.0046
+			Si=0.0054
+			Firn=0.0058
+			Ice=:0.0064
+			lapse=0.0044
+			elevLapse=950
+			sfe=1.5
+
+		weatheryyyy.csv:
+			Date,Temp
+			2010-01-25,-8.3
+
+		StakeDatayyyy.csv:
+			Stake,Easting,Northing,Elevation,Bw,Bs,Bn,Surface
+			04C,651103.586397,7536381.86553,1219,0.334,2.53,-2.196,ice
+	'''
 # Set up list of years from command line arguments
 	paramChoice = ''
 	if len(sys.argv) > 1:
@@ -621,15 +625,19 @@ def main():
 				sys.exit("Argument Error")
 		print years
 	else:
+		print main.__doc__
 		years = []
 		while len(years) <1:
 			try:
-				yearsFromUser = raw_input("Give years as space separated list: ")
+				yearsFromUser = raw_input("Give years as space separated list or (q)uit: ")
 				yearsAsString = yearsFromUser.strip().split(' ')
 				for yearString in yearsAsString:
 					years.append(int(yearString))
 			except:
-				years = []
+				if yearsFromUser == 'q':
+					sys.exit()
+				else:
+					years = []
 #
 # Run main function
 	for year in years:
