@@ -85,13 +85,13 @@ def readData(year, mainPath, db):
 	db[year] = {}
 	yearPath = os.path.join(mainPath, str(year))
 	# Find highest numbered subdirectory in each year (last iteration of snow back calculation)
-	for folder in range(20,0,-1):
-		if  os.path.exists(os.path.join(yearPath, str(folder))):
-			folderPath = os.path.join(yearPath, str(folder))
-			break
-		else:
-			continue
-
+# 	for folder in range(20,0,-1):
+# 		if  os.path.exists(os.path.join(yearPath, str(folder))):
+# 			folderPath = os.path.join(yearPath, str(folder))
+# 			break
+# 		else:
+# 			continue
+	folderPath = os.path.join(yearPath, str(0))
 	# Open report file
 	file = os.path.join(folderPath, 'Report.txt')
 	inFile = open(file,'rb')
@@ -239,14 +239,34 @@ db2 = reHash(db, year)
 db3 = vectorBase(db2, years)
 
 # Correlation of scores with parameter values
-m = np.array([db3['Score'], db3['ddfSnow'], db3['ddfFirn'], db3['ddfSi'], db3['ddfIce'], db3['elevLapse'], db3['lapse'], db3['sfe'], db3['ELA']])
+m = np.array([db3['Score'], db3['ddfSnow'], db3['ddfFirn'], db3['ddfSi'], db3['ddfIce'], db3['lapse'], db3['elevLapse'],  db3['sfe'], db3['ELA']])
 corArray = np.corrcoef(m)
 
 print "\nCorreletion Coefficient matrix for optimised parameters and score at first available summer survey\n"
-headers = ['Score', 'ddfSnow', 'ddfFirn',  'ddfSi', 'ddfIce' , 'eLps',  'lapse', 'sfe', 'ELA']
+headers = ['Score', 'Snow', 'Firn',  'Sup. Ice', 'Ice' ,  'Lapse Rate', 'Elev. Lapse',  'Shade exp.', 'ELA']
 print "\n\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*headers)
 for i in range(np.shape(corArray)[0]):
 	print "{}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}".format(headers[i],*corArray[i,])
+
+# Correlation of scores with parameter values, without 2012
+mX = np.array([db3['Score'], db3['ddfSnow'], db3['ddfFirn'], db3['ddfSi'], db3['ddfIce'], db3['lapse'], db3['elevLapse'], db3['sfe'], db3['ELA']])
+
+mask = np.ones(mX.shape,dtype=bool)
+mask[:,7]=0
+mX = np.reshape(mX[mask],(9,8))
+corArrayX = np.corrcoef(mX)
+
+for i in range(len(headers)):
+	print "\n", headers[i]
+	print m[i]
+	print mX[i]
+
+print "\nCorreletion Coefficient matrix for optimised parameters and score at first available summer survey excluding 2012\n"
+print "\n\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*headers)
+for i in range(np.shape(corArrayX)[0]):
+	print "{}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}\t{:2.3f}".format(headers[i],*corArrayX[i,])
+
+
 
 # Calculate average values for entire period (ex 2012), b1 and b2
 entire = range(len(years))
@@ -256,7 +276,6 @@ b1 = yall[0:4]
 b2 = yall[4:]
 
 print "\nOptimised parameter values and scores at first summer survey\n"
-headers = ['Score', 'ddfSnow', 'ddfFirn',  'ddfSi', 'ddfIce' , 'eLps',  'lapse', 'sfe', 'ELA']
 print "\n\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*headers)
 for i in entire:
 	print "{}\t{:2.3f}\t{:2.4f}\t{:2.4f}\t{:2.4f}\t{:2.4f}\t{:2.0f}\t{:2.4f}\t{:2.2f}\t{:2.0f}".format(years[i],*m[:,i])
@@ -285,7 +304,7 @@ dbA2 = reHash(dbA, year)
 # Vectors
 dbA3 = vectorBase(dbA2, years)
 
-mA = np.array([dbA3['Score'], dbA3['ddfSnow'], dbA3['ddfFirn'], dbA3['ddfSi'], dbA3['ddfIce'], dbA3['elevLapse'], dbA3['lapse'], dbA3['sfe'], dbA3['ELA']])
+mA = np.array([dbA3['Score'], dbA3['ddfSnow'], dbA3['ddfFirn'], dbA3['ddfSi'], dbA3['ddfIce'], dbA3['lapse'], dbA3['elevLapse'], dbA3['sfe'], dbA3['ELA']])
 
 printRes('All', headers, years, entire, mA, dbA3)
 
@@ -305,7 +324,7 @@ dbb12 = reHash(dbb1, year)
 # Vectors
 dbb13 = vectorBase(dbb12, years)
 
-mb1 = np.array([dbb13['Score'], dbb13['ddfSnow'], dbb13['ddfFirn'], dbb13['ddfSi'], dbb13['ddfIce'], dbb13['elevLapse'], dbb13['lapse'], dbb13['sfe'], dbb13['ELA']])
+mb1 = np.array([dbb13['Score'], dbb13['ddfSnow'], dbb13['ddfFirn'], dbb13['ddfSi'], dbb13['ddfIce'],  dbb13['lapse'], dbb13['elevLapse'], dbb13['sfe'], dbb13['ELA']])
 
 printRes('b1', headers, years, entire, mb1, dbb13)
 
@@ -325,7 +344,7 @@ dbb22 = reHash(dbb2, year)
 # Vectors
 dbb23 = vectorBase(dbb22, years)
 
-mb2 = np.array([dbb23['Score'], dbb23['ddfSnow'], dbb23['ddfFirn'], dbb23['ddfSi'], dbb23['ddfIce'], dbb23['elevLapse'], dbb23['lapse'], dbb23['sfe'], dbb23['ELA']])
+mb2 = np.array([dbb23['Score'], dbb23['ddfSnow'], dbb23['ddfFirn'], dbb23['ddfSi'], dbb23['ddfIce'],  dbb23['lapse'], dbb23['elevLapse'], dbb23['sfe'], dbb23['ELA']])
 
 printRes('b2', headers, years, entire, mb2, dbb23)
 
