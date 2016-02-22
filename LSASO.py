@@ -290,10 +290,12 @@ def runModel(inData, stakeNames, temps, times, jdatelist, jdayBw, paramDict, tru
 				orgBnColumn = 'Org_Bn'
 			data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = round((data[stake][orgBnColumn] + data[stake]['MeltModel'].meltSumSeries[loc]), 3)
 			data[stake]['Diff' + str(counter) + '_Bw_' + str(day)] = round((data[stake][orgBnColumn] + data[stake]['MeltModel'].meltSumSeries[loc] - data[stake]['Org_Bw']), 3)
+			data[stake]['Max' + str(counter) + '_Bw_' + str(day)] = round(np.max( (data[stake][orgBnColumn] + data[stake]['MeltModel'].meltSumSeries[loc], data[stake]['Org_Bw'])), 3)
 			data[stake]['Mod' + str(counter) + '_Bs_' + str(day)] =	 round(data[stake]['MeltModel'].meltSumSeries[loc],3)
 			data[stake]['Mod' + str(counter) + '_Bn_' + str(day)] =	 round(data[stake]['MeltModel'].BnSeries[loc],3)
 			data[stake]['Headers'].append('Mod' + str(counter) + '_Bw_' + str(day))
 			data[stake]['Headers'].append('Diff' + str(counter) + '_Bw_' + str(day))
+			data[stake]['Headers'].append('Max' + str(counter) + '_Bw_' + str(day))
 			data[stake]['Headers'].append('Mod' + str(counter) + '_Bs_' + str(day))
 			data[stake]['Headers'].append('Mod' + str(counter) + '_Bn_' + str(day))
 			# Fetch any truthing data available
@@ -307,8 +309,8 @@ def runModel(inData, stakeNames, temps, times, jdatelist, jdayBw, paramDict, tru
 					data[stake]['Org_Bs_' + str(day)] = np.nan
 					data[stake]['Org_Bn_' + str(day)] = np.nan
 					# data[stake]['Mod' + str(counter) + '_Bw_' + str(day)] = np.nan
-				data[stake]['Headers'].insert(-4, 'Org_Bs_' + str(day))
-				data[stake]['Headers'].insert(-4, 'Org_Bn_' + str(day))
+				data[stake]['Headers'].insert(-5, 'Org_Bs_' + str(day))
+				data[stake]['Headers'].insert(-5, 'Org_Bn_' + str(day))
 				# Add values to lists for calculating score later
 				if 'Mod' + str(counter) + '_Bs_' + str(day) not in data['DataSets'].keys():
 					data['DataSets']['Mod' + str(counter) + '_Bs_' + str(day)] = []
