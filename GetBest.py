@@ -109,7 +109,7 @@ info['b1_sb'] = {}
 info['b2_sb'] = {}
 
 for year in years:
-	file = os.path.join('../Output/Iterations/',str(year))
+	file = os.path.join('../Output/ELAset/',str(year))
 	file = os.path.join(file,'UsedParameters.csv')
 	data[year] = import2vector(file)
 	correlationHeaders = ['BsScore', 'ddfSnow', 'ddfSi', 'ddfFirn', 'ddfIce', 'lapse']

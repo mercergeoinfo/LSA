@@ -43,13 +43,15 @@ from standard import namer, makeDir, makeDirTS, filelist, import2vector
 class DdfCell:
 	# Set a counter for how many objects of this class we have created.
 	cellCount = 0
-	def __init__(self, east,north,elev,snowmwe,jday, shadevals, paramDict):
+	def __init__(self, east, north, elev, snowmwe, jday, shadevals, paramDict):
 		'''Initialise the DdfCell class object,
 		setting parameters required by class definition'''
 		# Give the values passed during initialisation to internal variables.
 		self.easting = east # Easting coordinate of point
 		self.northing = north # Northing coordinate of point
 		self.elevation = elev # Elevation of point
+		##### NEW
+		self.aspect = aspect # Aspect at point
 		self.initSnowMass = snowmwe # Snow mass in m w.e. at beginning of melt model period, Bw
 		self.currSnowMass = snowmwe # The snow in m w.e. left at location for current calculation
 		self.initjTime = jday # The julian day at beginning of melt model period
